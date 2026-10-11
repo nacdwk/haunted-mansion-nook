@@ -91,7 +91,7 @@ Apart from the two baked sets (the Grand Hall and the outside of the mansion) an
 | `js/baked.js` | Loads the Blender-built Grand Hall and exterior and draws them with their baked light |
 | `js/art.js` | Swaps in the official Stretching Room portraits and wallpaper and the Endless Hall wallpaper from `assets/art/`, when those files are present |
 | `tools/prepare_art.py` | Crops the portraits, cuts a seamless tile of the Endless Hall wallpaper and redraws the Stretching Room's stripes from the source images into `assets/art/` |
-| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`) and the exterior (`exterior.py`), their shared helpers (`kit.py`), and `bake.sh` to rebuild `assets/` |
+| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`) and the exterior (`exterior.py`, with its trees grown by `trees.py`), their shared helpers (`kit.py`), and `bake.sh` to rebuild `assets/` |
 
 A few techniques keep it running at 60 fps:
 
@@ -136,20 +136,24 @@ The baked hall has more geometry but costs less to draw where it fills the scree
 
 The four facades now have clapboard siding over a brick base, corner pilasters and a cornice on scrolled brackets. Every window has a full casing and a sill on brackets, with a pediment upstairs and a keystone below, and louvred shutters wherever there's room. The portico's six columns are turned and tapered, with capitals, and the front door has a sunburst fanlight and panelled leaves. The mansard has pedimented dormers with gold finials, and the roof that floats up when the house opens has corbelled chimneys and a domed cupola.
 
-The moon throws real shadows from the columns, cornices, shutters and sills. The dead tree the ride spirals around, and the small one behind the house, are grown again in Blender from the site's own random seeds, so their branches shadow the walls where the site's trees stand. The windows spill warm light onto their casings and the portico, and the gas lamps light the porch.
+The moon throws real shadows from the columns, cornices, shutters and sills. The windows spill warm light onto their casings and the portico, and the gas lamps light the porch.
+
+![The spiral tree, procedural and baked](docs/tree-baked.jpg)
+
+The dead tree the ride spirals around is part of the set too. `blender/trees.py` replays the site's own random numbers to get the same branches, then grows a detailed tree on them: a twisting, ridged trunk on buttress roots, surface roots that sink into the lawn, knots and broken-off stubs, forks that split like real wood, and a finer crown of hooked twigs. Twigs that would reach into the Doom Buggies' path are left off. The tree's shadow on the walls comes from the same model, and the small tree behind the house is regrown just to cast its shadow.
 
 The window panes, iron railings, cresting and ghosts stay procedural. The baked walls don't receive the live shadow map, so the passing Doom Buggies no longer cast shadows on them.
 
-Measured the same way, three runs each. Both columns include the baked Grand Hall and the official art, so the totals are higher than in the Grand Hall's table:
+Measured the same way, with GPU times over three runs each. Both columns include the baked Grand Hall and the official art, so the totals are higher than in the Grand Hall's table:
 
 | | Procedural exterior | Baked exterior |
 |---|---|---|
-| Download for the whole page (cache off) | 1,514 KB | 2,083 KB (+569 KB of model and lightmaps) |
+| Download for the whole page (cache off) | 1,514 KB | 2,181 KB (+667 KB of model and lightmaps, 98 KB of it the tree) |
 | GPU time per frame at Retina size, whole house in view | 14.4–18.0 ms | 11.2–14.8 ms |
 | GPU time per frame at Retina size, close-up of the portico | 14.7–17.2 ms | 6.2–7.9 ms |
-| Draw calls (with shadow pass) / triangles | 853 / 313k | 858 / 347k |
+| Draw calls (with shadow pass) / triangles | 853 / 313k | 863 / 365k |
 
-The baked exterior costs a little less to draw from a distance and about half as much close up. Again, the price is download size.
+The GPU times come from runs before the tree was added. One run with it took 12.6 ms for the whole house and 8.3 ms for the portico close-up, about the same. The baked exterior costs a little less to draw from a distance and about half as much close up. Again, the price is download size.
 
 ## Credits
 

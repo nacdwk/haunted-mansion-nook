@@ -70,6 +70,7 @@ const EXTERIOR_LOOK = {
   brick: { map: 'brick', uv: 2.2 }, stone: { map: 'stoneWarm', uv: 3.5 }, stone_dark: { map: 'stoneDark', uv: 3.5 },
   shingle: { map: 'shingle', uv: 2.2 }, shingle_dark: { map: 'shingleDark', uv: 2.0 }, wood_dark: { map: 'woodDark', uv: 5 },
   iron: { color: '#17131d', metal: 0.5 }, gold: { color: '#c9a24a', metal: 1 }, door: { color: '#4a1e14', gloss: 0.2 },
+  bark: { color: '#4a3a40' },   // lighter than the site's bark, which gets most of its brightness from its sheen
 };
 // the Grand Hall's brightest flames, which polished surfaces pick up as glints: position and strength
 const HALL_GLINTS = [[-5.0, 12.5, 1.6, 7], [-10.3, 7.9, -4.1, 5], [-6.4, 9.1, -0.45, 2.2], [-2.8, 9.1, -0.45, 2.2],
@@ -269,7 +270,7 @@ export function addBakedExterior(root) {
     if (!name.startsWith('Ext_')) return null;
     const part = name.slice(4);
     if (part === 'roof') return { parent: W.roof.roof, cast: true };
-    if (part === 'porch') return { parent: G, cast: true };
+    if (part === 'porch' || part === 'tree') return { parent: G, cast: true };
     return { dissolver: part, cast: true };
   });
   const candle = W.lights.find((e) => e.light.isPointLight && e.light.position.x > 40);

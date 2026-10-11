@@ -5,21 +5,23 @@ roof that floats up when the house opens (deck, chimneys and cupola).
     blender -b --factory-startup -P blender/exterior.py -- --out blender/build --size 2048 --samples 256
 
 Writes exterior.glb (objects Ext_<group>: porch, front, back, left, right, mansard-front/back/left/right,
-roof), exterior_warm.png and exterior_cool.png (sqrt-encoded irradiance) and exterior.json.
+roof, tree), exterior_warm.png and exterior_cool.png (sqrt-encoded irradiance) and exterior.json.
 
 warm: the shelf candle beside the house, the glowing windows, the gas lamps and the cupola.
 cool: the moon, the pink fill light and the night sky, matching js/main.js.
 
 The window panes, iron railings and cresting, weathervane and the ghosts stay procedural, and so does
 everything on the room side of the walls. Coordinates match js/house.js.
-Two of the site's dead trees are grown again from their seeds as bake-only scenery, so their moon
-shadows land on the walls as they do on the site.
+The spiral tree beside the house is grown in detail on the site's own branches (blender/trees.py), and
+the small tree behind the house is regrown as bake-only scenery, so both shadow the walls where the site's
+trees stand.
 """
 import os, sys, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import bmesh, bpy
 from mathutils import Vector
 import kit
+import trees
 from kit import M, mat, box, cyl, lathe, sphere, prism, slab, Wall, subtract, runs_at, group, light, blocker, hexcol
 
 A = kit.args({'out': 'assets', 'size': 2048, 'cool_size': 2048, 'samples': 256})
@@ -31,7 +33,7 @@ SKIN = 0.16                        # the facades' outer layer in js/house.js; th
 for name, col, rough in [('siding', '#a79fb8', 0.8), ('trim', '#ebe4f0', 0.6), ('trim_dark', '#2a2236', 0.7), ('shutter', '#2c2b45', 0.7),
                          ('brick', '#6a3a3a', 0.9), ('stone', '#8a7f78', 0.9), ('stone_dark', '#4f4a5e', 0.85), ('shingle', '#4d3b63', 0.75),
                          ('shingle_dark', '#2e2540', 0.75), ('iron', '#17131d', 0.5), ('gold', '#c9a24a', 0.4), ('door', '#4a1e14', 0.5),
-                         ('wood_dark', '#3a2214', 0.8)]:
+                         ('wood_dark', '#3a2214', 0.8), ('bark', '#2b2129', 0.9)]:
     mat(name, col, rough)
 T = M['trim']
 WARM_WINDOW = hexcol('#ffc27a')
@@ -323,6 +325,25 @@ lathe([(0, 0), (1.95, 0), (2.05, 0.15), (1.6, 0.7), (0.9, 1.3), (0.45, 1.8), (0.
 lathe([(0, 0), (0.12, 0), (0.2, 0.15), (0.2, 0.3), (0.08, 0.45), (0, 0.5)], 0, cy0 + 5.85, 0, M['gold'], seg=12)
 cyl(0.06, 0.06, 1.6, 0, cy0 + 6.3, 0, M['iron'], seg=6)
 
+# ------------------------------------------------------------------ the spiral tree the ride descends around (js/outside.js)
+HELIX = (22.0, -1.8)
+APPROACH = [(13.8, 14.55, 2.3), (16.8, 14.0, 2.0), (19.6, 12.6, 0.6)]     # the track from the attic to the top of the spiral
+
+def on_ride(p):
+    """True on the Doom Buggies' path round the tree in js/ride.js, with room for the buggies themselves."""
+    if 2.3 < math.hypot(p[0] - HELIX[0], p[2] - HELIX[1]) < 4.5 and 0.3 < p[1] < 15.2:
+        return True
+    for a, b in zip(APPROACH, APPROACH[1:]):
+        vx, vz = b[0] - a[0], b[2] - a[2]
+        t = max(0.0, min(1.0, ((p[0] - a[0]) * vx + (p[2] - a[2]) * vz) / (vx * vx + vz * vz)))
+        y = a[1] + (b[1] - a[1]) * t
+        if math.hypot(p[0] - a[0] - vx * t, p[2] - a[2] - vz * t) < 1.2 and y - 0.4 < p[1] < y + 2.4:
+            return True
+    return False
+
+group('tree')
+trees.gnarled(trees.skeleton(HELIX[0], 0.0, HELIX[1], h=25, r=0.75, seed=11, spread=0.8, crown=True), M['bark'], seed=11, keep_out=on_ride)
+
 # ------------------------------------------------------------------ bake-only scenery: the house's insides, the tower, the lawn
 group('main')
 blocker(box(X0 + SKIN, X1 - SKIN, 0.0, AT, Z0 + SKIN, Z1 - SKIN, M['trim']))
@@ -343,89 +364,7 @@ blocker(cyl(3.5, 0.05, 6.0, -16.9, 21.0, 2.0, M['trim'], seg=8, rot=math.pi / 8)
 blocker(box(-60, 80, -0.6, 0.0, -30, 30, mat('lawn', '#26302a', 0.95)), keep_material=True)
 
 
-def catmull_rom(pts):
-    """THREE.CatmullRomCurve3(pts).getPoint(t) for the default centripetal curve."""
-    n = len(pts)
-    def at(t):
-        p = (n - 1) * t
-        i = math.floor(p)
-        w = p - i
-        if w == 0 and i == n - 1:
-            i, w = n - 2, 1.0
-        p0 = pts[i - 1] if i > 0 else tuple(2 * a - b for a, b in zip(pts[0], pts[1]))
-        p1, p2 = pts[i], pts[i + 1]
-        p3 = pts[i + 2] if i + 2 < n else tuple(2 * a - b for a, b in zip(pts[-1], pts[-2]))
-        d2 = lambda a, b: sum((x - y) ** 2 for x, y in zip(a, b))
-        dt0, dt1, dt2 = d2(p0, p1) ** 0.25, d2(p1, p2) ** 0.25, d2(p2, p3) ** 0.25
-        if dt1 < 1e-4:
-            dt1 = 1.0
-        if dt0 < 1e-4:
-            dt0 = dt1
-        if dt2 < 1e-4:
-            dt2 = dt1
-        out = []
-        for x0, x1, x2, x3 in zip(p0, p1, p2, p3):
-            t1 = ((x1 - x0) / dt0 - (x2 - x0) / (dt0 + dt1) + (x2 - x1) / dt1) * dt1
-            t2 = ((x2 - x1) / dt1 - (x3 - x1) / (dt1 + dt2) + (x3 - x2) / dt2) * dt1
-            c2, c3 = -3 * x1 + 3 * x2 - 2 * t1 - t2, 2 * x1 - 2 * x2 + t1 + t2
-            out.append(x1 + t1 * w + c2 * w * w + c3 * w * w * w)
-        return tuple(out)
-    return at
-
-def dead_tree(x, y, z, h, r, seed, spread=1.0, moss=False, crown=False):
-    """js/props.js deadTree grown again from the same seed (same random numbers, same curves), as bake-only
-    scenery that blocks the moon, so its shadow crosses the walls where the site's tree stands. The site's
-    candle casts no shadows, so the tree doesn't block it here either."""
-    s = seed * 9301 + 49297
-    def rnd():
-        nonlocal s
-        s = (s * 9301 + 49297) % 233280
-        return s / 233280
-    def unit(v):
-        L = math.sqrt(sum(a * a for a in v)) or 1.0
-        return [a / L for a in v]
-    bm = bmesh.new()
-    def branch(p, d, length, rad, depth):
-        pts, cur, d = [p], p, list(d)
-        for _ in range(4):
-            wob = 0.12 if crown and depth == 3 else 0.5
-            d[0] += (rnd() - 0.5) * wob * spread
-            d[2] += (rnd() - 0.5) * wob * spread
-            d[1] += 0.05
-            d = unit(d)
-            cur = tuple(c + a * length / 4 for c, a in zip(cur, d))
-            pts.append(cur)
-        curve = catmull_rom(pts)
-        rings = []
-        for j in range(7):                                          # a six-sided tube tapering to a quarter
-            t = j / 6
-            c = Vector(curve(t))
-            tan = (Vector(curve(min(1.0, t + 0.02))) - Vector(curve(max(0.0, t - 0.02)))).normalized()
-            u = tan.orthogonal().normalized()
-            v = tan.cross(u)
-            k = rad * (1 - t * 0.75)
-            rings.append([bm.verts.new(kit.V(*(Vector((x, y, z)) + c + (u * math.cos(a / 6 * math.tau) + v * math.sin(a / 6 * math.tau)) * k)))
-                          for a in range(6)])
-        for r0, r1 in zip(rings, rings[1:]):
-            for a in range(6):
-                bm.faces.new((r0[a], r0[(a + 1) % 6], r1[(a + 1) % 6], r1[a]))
-        if moss and depth >= 1:
-            rnd()                                                   # the site rolls for a clump of moss here
-        if depth <= 0:
-            return
-        for _ in range(3 if depth > 1 else 2):
-            nd = list(d)
-            nd[0] += (rnd() - 0.5) * 1.6 * spread
-            nd[2] += (rnd() - 0.5) * 1.6 * spread
-            nd[1] = max(0.15, nd[1] - rnd() * 0.3)
-            nd = unit(nd)
-            at = curve(0.88 + rnd() * 0.12 if crown and depth == 3 else 0.6 + rnd() * 0.4)
-            branch(at, nd, length * (0.55 + rnd() * 0.2), rad * 0.55, depth - 1)
-    branch((0.0, 0.0, 0.0), (0.0, 1.0, 0.0), h * 0.55, r, 3)
-    return blocker(kit.finish(bm, M['trim'], 'tree'), only='cool')
-
-dead_tree(22.0, 0.0, -1.8, h=25, r=0.75, seed=11, spread=0.8, crown=True)      # the spiral tree right of the house
-dead_tree(-2.6, 0.0, -6.7, h=7, r=0.3, seed=5)                                # the small one behind it
+blocker(trees.tubes(trees.skeleton(-2.6, 0.0, -6.7, h=7, r=0.3, seed=5), M['trim']), only='cool')   # the small tree behind the house
 
 # ------------------------------------------------------------------ lights
 COOL = dict(group='cool')

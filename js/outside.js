@@ -181,8 +181,8 @@ function graveyard(S, G) {
   }
   boxA(15.4, 21.9, -0.02, 0.12, 6.85, 7.0, MAT.stoneDark, S);
   boxA(15.4, 21.9, -0.02, 0.12, 9.4, 9.55, MAT.stoneDark, S);
-  // the spiral tree the ride descends around
-  P.deadTree(S, 22.0, 0, -1.8, { h: 25, r: 0.75, seed: 11, m: MAT.bark, spread: 0.8, crown: true });
+  // the spiral tree the ride descends around (the baked exterior brings a detailed one)
+  if (!W.bakedExterior) P.deadTree(S, 22.0, 0, -1.8, { h: 25, r: 0.75, seed: 11, m: MAT.bark, spread: 0.8, crown: true });
   // tombstones
   const lines = [
     ['DOCTOR GRAVE', 'prescribed rest', 'and rest he gave'],
