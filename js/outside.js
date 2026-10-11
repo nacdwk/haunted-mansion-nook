@@ -34,10 +34,12 @@ function pillar(S, x, z, h = 2.0) {
 
 // ------------------------------------------------------------------ front yard
 function frontYard(S, G) {
-  // porch & steps
-  boxA(-7.7, 7.7, 0, D.F1, 5.0, 7.75, MAT.stoneWarm, S);
-  boxA(-7.8, 7.8, D.F1 - 0.05, D.F1 + 0.02, 4.95, 7.85, MAT.stoneDark, S);
-  for (let i = 0; i < 3; i++) boxA(-2.3 + i * 0.12, 2.3 - i * 0.12, 0, D.F1 - i * 0.27 - 0.0, 7.75, 8.8 - i * 0.36, MAT.stone, S);
+  // porch & steps (the baked exterior brings its own)
+  if (!W.bakedExterior) {
+    boxA(-7.7, 7.7, 0, D.F1, 5.0, 7.75, MAT.stoneWarm, S);
+    boxA(-7.8, 7.8, D.F1 - 0.05, D.F1 + 0.02, 4.95, 7.85, MAT.stoneDark, S);
+    for (let i = 0; i < 3; i++) boxA(-2.3 + i * 0.12, 2.3 - i * 0.12, 0, D.F1 - i * 0.27 - 0.0, 7.75, 8.8 - i * 0.36, MAT.stone, S);
+  }
   // flagstone path
   for (let z = 8.95; z < 10.1; z += 0.55) for (const x of [-0.6, 0.6]) boxA(x - 0.5 + rand(-0.05, 0.05), x + 0.5, 0, 0.05, z, z + 0.48, MAT.flags, S);
   // fence across the front with a gate

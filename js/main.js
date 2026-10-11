@@ -21,11 +21,16 @@ async function boot() {
   W.state.reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const query = new URLSearchParams(location.search);
   const timeout = (ms) => new Promise((_, no) => setTimeout(() => no(new Error('timed out')), ms));
-  // the Blender-built Grand Hall downloads while everything else is set up; ?baked=0 shows the procedural one,
-  // which is also the fallback if anything about it fails to load
-  const bakedHall = query.get('baked') === '0' ? null
-    : Promise.race([import('./baked.js').then(async (m) => ({ hall: await m.loadBakedHall(), add: m.addBakedHall })), timeout(25000)])
-      .catch((e) => { console.warn('Baked Grand Hall unavailable, building the procedural one instead:', e); return null; });
+  // the Blender-built sets download while everything else is set up. ?baked=0 shows the procedural house and
+  // ?exterior=0 just the procedural exterior; the procedural version is also the fallback for any set that fails
+  const set = (m, name) => Promise.race([m.loadBakedSet(name), timeout(25000)])
+    .catch((e) => { console.warn(`Baked ${name} unavailable, building the procedural one instead:`, e); return null; });
+  const bakedSets = query.get('baked') === '0' ? null
+    : import('./baked.js').then(async (m) => {
+      const [hall, exterior] = await Promise.all([set(m, 'grandhall'), query.get('exterior') === '0' ? null : set(m, 'exterior')]);
+      m.releaseLoaders();
+      return { m, hall, exterior };
+    }).catch((e) => { console.warn('Baked sets unavailable:', e); return null; });
   // the official portraits and wallpaper (js/art.js); ?art=0 shows the house's own painted versions
   const officialArt = query.get('art') === '0' ? null
     : Promise.race([loadOfficialArt(), timeout(15000)])
@@ -97,8 +102,9 @@ async function boot() {
 
   status('Raising the walls…');
   await frame();
-  const baked = bakedHall && await bakedHall;
-  if (baked) W.bakedHall = baked.hall;
+  const baked = bakedSets && await bakedSets;
+  W.bakedHall = baked?.hall || null;
+  W.bakedExterior = baked?.exterior || null;
   const world = new THREE.Group(); world.name = 'world';
   scene.add(world);
   W.world = world;
@@ -111,11 +117,12 @@ async function boot() {
   status('Waking the residents…');
   await frame();
   buildRooms(world);
-  if (baked) baked.add(world);
+  if (W.bakedHall) baked.m.addBakedHall(world);
   status('Digging the graveyard…');
   await frame();
   buildOutside(world);
   buildSoil(world);
+  if (W.bakedExterior) baked.m.addBakedExterior(world);
   status('Oiling the Doom Buggies…');
   await frame();
   const post = setupPost(renderer, scene, camera);

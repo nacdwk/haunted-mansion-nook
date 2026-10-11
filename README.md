@@ -71,7 +71,7 @@ On `localhost` you can skip the title card while developing: `?autoenter` enters
 
 ## How it's built
 
-Apart from the Grand Hall's baked set and the portraits and wallpaper listed under [Credits](#credits), there are no image, model or audio files. Every mesh is built from primitives, every texture (wallpapers, wood, slate, soil strata, all the portraits, the faces in the crystal ball and on the busts) is painted onto canvases at load time, and all sound is generated with the Web Audio API.
+Apart from the two baked sets (the Grand Hall and the outside of the mansion) and the portraits and wallpaper listed under [Credits](#credits), there are no image, model or audio files. Every mesh is built from primitives, every texture (wallpapers, wood, slate, soil strata, all the portraits, the faces in the crystal ball and on the busts) is painted onto canvases at load time, and all sound is generated with the Web Audio API.
 
 | File | What it does |
 |---|---|
@@ -88,10 +88,10 @@ Apart from the Grand Hall's baked set and the portraits and wallpaper listed und
 | `js/audio.js` | The synthesizer, the score and sound effects |
 | `js/post.js` | Bloom, tilt-shift miniature blur and colour grade |
 | `js/ui.js` | Picking, hover labels, room panels, the dock, captions and the ride overlay |
-| `js/baked.js` | Loads the Blender-built Grand Hall and draws it with its baked light |
+| `js/baked.js` | Loads the Blender-built Grand Hall and exterior and draws them with their baked light |
 | `js/art.js` | Swaps in the official Stretching Room portraits and wallpaper and the Endless Hall wallpaper from `assets/art/`, when those files are present |
 | `tools/prepare_art.py` | Crops the portraits, cuts a seamless tile of the Endless Hall wallpaper and redraws the Stretching Room's stripes from the source images into `assets/art/` |
-| `blender/` | The Blender script that models and light-bakes the Grand Hall, and `bake.sh` to rebuild `assets/` |
+| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`) and the exterior (`exterior.py`), their shared helpers (`kit.py`), and `bake.sh` to rebuild `assets/` |
 
 A few techniques keep it running at 60 fps:
 
@@ -102,16 +102,21 @@ A few techniques keep it running at 60 fps:
 - The facade melts with a 3D-noise dissolve shader whose edges glow like ectoplasm.
 - In the mirror, the hitchhiker is switched on only for the reflection's render pass, so you can see him in the glass but not beside you.
 
-## The baked Grand Hall (experiment)
+## Baked sets (experiment)
+
+Two parts of the house are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall and the outside of the mansion. Everything else, including every resident, is still procedural.
+
+- A Python script in `blender/` builds each set (`grand_hall.py` and `exterior.py`, with shared helpers in `kit.py`) and removes faces nobody can see. It then bakes two lightmaps, warm (flames, lamps and lit windows) and cool (moonlight, sky and fill light), and exports Draco-compressed geometry.
+- `js/baked.js` draws the sets with one cheap shader. It reads the lightmaps, maps the site's painted textures onto the surfaces and adds the lantern.
+- Because the two lightmaps are separate, the sets still dim for the lantern, flicker with the flames and flash with lightning, and their walls melt away with the facades.
+- Rebuild a set with `blender/bake.sh grandhall` or `blender/bake.sh exterior`. Each takes about 45 seconds on an M4 GPU and writes the web-ready files to `assets/`.
+- To compare, add `?baked=0` to the URL for the all-procedural house, or `?exterior=0` for just the procedural exterior. If a baked set fails to load, the site builds the procedural version in its place.
+
+### The Grand Hall
 
 ![The Grand Hall, procedural and baked](docs/grand-hall-baked.jpg)
 
-On this branch the Grand Hall's set is modelled in Blender and lit with Cycles instead of being built from primitives at load time. The new set has a coffered ceiling, fluted gilt pilasters, raised panels, dentil cornices, turned balusters on the gallery, a veined marble fireplace with a mirror overmantel, a pipe organ with a three-manual console, an inlaid parquet floor with a star medallion, curtained windows and wall sconces. The residents, the chandelier, the cake and the portraits are still the procedural ones.
-
-- `blender/grand_hall.py` builds the set and removes faces nobody can see. It then bakes two lightmaps: warm (chandelier, candles, fire) and cool (moonlight, the ghosts' glow, and the house's sky and fill light with ambient occlusion). Finally it exports Draco-compressed geometry.
-- `js/baked.js` draws the set with one cheap shader. It reads the lightmaps, maps the site's painted textures onto the surfaces and adds the lantern. Polished floors and marble show glints of the flames, and gilt gets a fake reflection.
-- Because the two lightmaps are separate, the hall still dims for the lantern, brightens on hover, flickers with the fire and flashes with lightning. Its wall dressing melts away with the facades.
-- Rebuild with `blender/bake.sh --size 2048 --samples 256`, which takes about 40 seconds on an M4 GPU. To compare, add `?baked=0` to the URL for the procedural hall. If the baked files fail to load, the site falls back to the procedural hall on its own.
+The new set has a coffered ceiling, fluted gilt pilasters, raised panels, dentil cornices, turned balusters on the gallery, a veined marble fireplace with a mirror overmantel, a pipe organ with a three-manual console, an inlaid parquet floor with a star medallion, curtained windows and wall sconces. The residents, the chandelier, the cake and the portraits are still the procedural ones. Its cool lightmap also holds the ghosts' glow and ambient occlusion, polished floors and marble show glints of the flames, and gilt gets a fake reflection.
 
 Measured in headless Chrome on an M4 MacBook, against the same views in the procedural version:
 
@@ -124,6 +129,27 @@ Measured in headless Chrome on an M4 MacBook, against the same views in the proc
 | Draw calls (with shadow pass) / triangles | 659 / 248k | 668 / 274k |
 
 The baked hall has more geometry but costs less to draw where it fills the screen, because its surfaces don't add up a dozen point lights for every pixel. The price is download size.
+
+### The exterior
+
+![The mansion's front, procedural and baked](docs/exterior-baked.jpg)
+
+The four facades now have clapboard siding over a brick base, corner pilasters and a cornice on scrolled brackets. Every window has a full casing and a sill on brackets, with a pediment upstairs and a keystone below, and louvred shutters wherever there's room. The portico's six columns are turned and tapered, with capitals, and the front door has a sunburst fanlight and panelled leaves. The mansard has pedimented dormers with gold finials, and the roof that floats up when the house opens has corbelled chimneys and a domed cupola.
+
+The moon throws real shadows from the columns, cornices, shutters and sills. The dead tree the ride spirals around, and the small one behind the house, are grown again in Blender from the site's own random seeds, so their branches shadow the walls where the site's trees stand. The windows spill warm light onto their casings and the portico, and the gas lamps light the porch.
+
+The window panes, iron railings, cresting and ghosts stay procedural. The baked walls don't receive the live shadow map, so the passing Doom Buggies no longer cast shadows on them.
+
+Measured the same way, three runs each. Both columns include the baked Grand Hall and the official art, so the totals are higher than in the Grand Hall's table:
+
+| | Procedural exterior | Baked exterior |
+|---|---|---|
+| Download for the whole page (cache off) | 1,514 KB | 2,083 KB (+569 KB of model and lightmaps) |
+| GPU time per frame at Retina size, whole house in view | 14.4–18.0 ms | 11.2–14.8 ms |
+| GPU time per frame at Retina size, close-up of the portico | 14.7–17.2 ms | 6.2–7.9 ms |
+| Draw calls (with shadow pass) / triangles | 853 / 313k | 858 / 347k |
+
+The baked exterior costs a little less to draw from a distance and about half as much close up. Again, the price is download size.
 
 ## Credits
 
