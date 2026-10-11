@@ -4,7 +4,7 @@ An interactive 3D book-nook diorama of the Haunted Mansion ride, built entirely 
 
 **▶ Visit the nook: <https://nacdwk.github.io/haunted-mansion-nook/>**
 
-*An unofficial fan tribute. The music, sound and narration are original and generated in code. The artwork is too, apart from the Stretching Room's portraits and the Endless Hall's wallpaper (see [Credits](#credits)).*
+*An unofficial fan tribute. The music, sound and narration are original and generated in code. The artwork is too, apart from the Stretching Room's portraits and wallpaper and the Endless Hall's wallpaper (see [Credits](#credits)).*
 
 ![The open nook](docs/overview.jpg)
 
@@ -89,8 +89,8 @@ Apart from the Grand Hall's baked set and the portraits and wallpaper listed und
 | `js/post.js` | Bloom, tilt-shift miniature blur and colour grade |
 | `js/ui.js` | Picking, hover labels, room panels, the dock, captions and the ride overlay |
 | `js/baked.js` | Loads the Blender-built Grand Hall and draws it with its baked light |
-| `js/art.js` | Swaps in the official Stretching Room portraits and Endless Hall wallpaper from `assets/art/`, when those files are present |
-| `tools/prepare_art.py` | Crops the portraits and cuts a seamless wallpaper tile from the source images into `assets/art/` |
+| `js/art.js` | Swaps in the official Stretching Room portraits and wallpaper and the Endless Hall wallpaper from `assets/art/`, when those files are present |
+| `tools/prepare_art.py` | Crops the portraits, cuts a seamless tile of the Endless Hall wallpaper and redraws the Stretching Room's stripes from the source images into `assets/art/` |
 | `blender/` | The Blender script that models and light-bakes the Grand Hall, and `bake.sh` to rebuild `assets/` |
 
 A few techniques keep it running at 60 fps:
@@ -129,8 +129,9 @@ The baked hall has more geometry but costs less to draw where it fills the scree
 
 - The four Stretching Room portraits are Disney's paintings of the attraction's stretching portraits, taken from Disney Store product images (© Disney).
 - The Endless Hall's wallpaper is Panicked Pixie's recreation of the attraction's wallpaper, from their Redbubble listing, after Disney's original design.
+- The Stretching Room's striped wallpaper is redrawn from a photo of the attraction's own wallpaper; its stripe colours are sampled from that photo.
 
-Both are used without permission in this non-commercial fan tribute. If you hold the rights to either and want them taken down, please open an issue. Deleting `assets/art/` puts the house's own painted portraits and its original eye-damask wallpaper back in their place, and `?art=0` shows those versions now.
+These are used without permission in this non-commercial fan tribute. If you hold the rights to either and want them taken down, please open an issue. Deleting `assets/art/` puts the house's own painted portraits, its original eye-damask wallpaper and its own striped wallpaper back in their place, and `?art=0` shows those versions now.
 
 ## Disclaimer
 

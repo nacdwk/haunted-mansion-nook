@@ -33,7 +33,7 @@ export function buildMaterials() {
   T.papSeance = TX.damask('#24163a', '#3a2358', { accent: '#7a5aa0' });
   T.papBall = TX.damask('#55293f', '#74405a', { accent: '#c9a24a' });
   T.papAttic = TX.damask('#353b4a', '#41495c', { stripe: false });
-  T.papTower = TX.damask('#4a1420', '#68202f', { accent: '#c9a24a' });
+  T.papTower = TX.stripes();
   T.papBase = TX.damask('#1e1630', '#2c2046', { stripe: false });
   T.wainscot = TX.wainscot('#3a2216');
   T.wainscotDark = TX.wainscot('#24140c');
@@ -107,7 +107,7 @@ export function buildMaterials() {
   MAT.papSeance = texMat(T.papSeance, { uv: 2.4 });
   MAT.papBall = texMat(T.papBall, { uv: 2.6 });
   MAT.papAttic = texMat(T.papAttic, { uv: 2.4 });
-  MAT.papTower = texMat(T.papTower, { uv: 2.0 });
+  MAT.papTower = texMat(T.papTower, { uv: 1.6 });
   MAT.papBase = texMat(T.papBase, { uv: 2.2 });
   MAT.wainscot = texMat(T.wainscot, { uv: 2.4 });
   MAT.wainscotDark = texMat(T.wainscotDark, { uv: 2.4 });

@@ -129,6 +129,23 @@ export function damask(bg = '#3d1a2a', fg = '#5e2a3e', { stripe = true, accent =
 }
 
 // The famous eye-filled wallpaper (our own take): scrollwork faces with glowing eyes.
+// The Stretching Room's wallpaper: regency stripes in oxblood, sage, gold, slate and soot, finely ribbed.
+export function stripes() {
+  const W = 256, H = 256;
+  const [c, ctx] = cnv(W, H);
+  const seq = [['#7c1f24', 34], ['#c2a25a', 3], ['#2e2a24', 4], ['#c2a25a', 3], ['#46603f', 22], ['#5a5f6e', 5], ['#46603f', 10],
+    ['#c2a25a', 6], ['#1f1c18', 8], ['#7c1f24', 18], ['#a8323a', 6], ['#7c1f24', 18], ['#c2a25a', 2], ['#46603f', 30],
+    ['#c2a25a', 4], ['#2e2a24', 10], ['#c2a25a', 4], ['#5a5f6e', 8], ['#7c1f24', 30], ['#c2a25a', 3], ['#46603f', 18], ['#1f1c18', 6], ['#c2a25a', 4]];
+  let x = 0;
+  for (const [col, w] of seq) {
+    ctx.fillStyle = col; ctx.fillRect(x, 0, w, H);
+    if (w >= 18) { ctx.fillStyle = 'rgba(0,0,0,0.12)'; for (let k = x + 2; k < x + w - 1; k += 3) ctx.fillRect(k, 0, 1, H); }   // ribbing
+    x += w;
+  }
+  grain(ctx, W, H, 0.04, 1500);
+  return tex(c);
+}
+
 // The Endless Hall's wallpaper: a lavender damask of hooded wardens, bat-winged imps and little peepers whose white eyes glow
 // in the dark (the emissive map). One repeat is 256x512 with every other row shifted half a repeat.
 export function hauntPaper() {
