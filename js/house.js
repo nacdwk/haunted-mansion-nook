@@ -40,6 +40,10 @@ export function buildWall({ openings = [], outer = [], inner = [], t = 0.4, spli
   const g = new THREE.Group();
   for (const reg of outer) for (const r of subtractRects(reg.u0, reg.u1, reg.v0, reg.v1, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -split, 0, reg.mat, g);
   for (const reg of inner) {
+    if (reg.bare) { // just the wall core: something else (the baked Grand Hall) dresses this face
+      for (const r of subtractRects(reg.u0, reg.u1, reg.v0, reg.v1, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -t, -split, MAT.walnut, g);
+      continue;
+    }
     const wh = reg.wainscot || 0;
     const vSplit = reg.v0 + wh;
     if (wh > 0) {
@@ -57,7 +61,7 @@ export function buildWall({ openings = [], outer = [], inner = [], t = 0.4, spli
 export function place(obj, x, y, z, ry = 0) { obj.position.set(x, y, z); obj.rotation.y = ry; return obj; }
 
 // exterior window dressing + interior glass/curtains for one opening
-function dressWindow(g, o, { curtain = MAT.curtainRed, glowMat = MAT.windowGlow, shutters = true, inside = true, t = 0.4 } = {}) {
+function dressWindow(g, o, { curtain = MAT.curtainRed, glowMat = MAT.windowGlow, shutters = true, inside = true, trimInside = true, t = 0.4 } = {}) {
   const w = o.u1 - o.u0, h = o.v1 - o.v0, cu = (o.u0 + o.u1) / 2, cv = (o.v0 + o.v1) / 2;
   boxA(o.u0 - 0.16, o.u0, o.v0 - 0.08, o.v1 + 0.05, 0, 0.07, MAT.trim, g);
   boxA(o.u1, o.u1 + 0.16, o.v0 - 0.08, o.v1 + 0.05, 0, 0.07, MAT.trim, g);
@@ -78,6 +82,7 @@ function dressWindow(g, o, { curtain = MAT.curtainRed, glowMat = MAT.windowGlow,
   if (inside) {
     const ng = mesh(new THREE.PlaneGeometry(w, h), MAT.nightGlass, cu, cv, -0.3, g);
     ng.rotation.y = Math.PI;
+    if (!trimInside) return glowPlane;
     boxA(o.u0 - 0.14, o.u0, o.v0 - 0.08, o.v1 + 0.08, -t - 0.08, -t, MAT.walnut, g);
     boxA(o.u1, o.u1 + 0.14, o.v0 - 0.08, o.v1 + 0.08, -t - 0.08, -t, MAT.walnut, g);
     boxA(o.u0 - 0.14, o.u1 + 0.14, o.v1, o.v1 + 0.14, -t - 0.08, -t, MAT.walnut, g);
@@ -233,6 +238,7 @@ export function buildShelf(root) {
 export function buildShell(root) {
   const { F1, F2, AT } = D;
   const facades = {};
+  const bare = !!W.bakedHall; // the baked Grand Hall brings its own wall dressing
   const ROOM = { lib: [0, 9.33], foy: [9.33, 18.67], con: [18.67, 28] };
 
   // FRONT (+z) — origin (-14, 0, 5)
@@ -317,7 +323,7 @@ export function buildShell(root) {
         { u0: 9.33, u1: 18.67, v0: F1, v1: 7.0, mat: MAT.papEyes, wainscot: 2.0, wmat: MAT.wainscotDark },
         { u0: 18.67, u1: 28, v0: F1, v1: 7.0, mat: MAT.papLibrary, wainscot: 2.0 },
         { u0: 0, u1: 9.33, v0: F2, v1: 13.6, mat: MAT.papSeance, wainscot: 1.8 },
-        { u0: 9.33, u1: 28, v0: F2, v1: 13.6, mat: MAT.papBall, wainscot: 2.2, crown: MAT.gold },
+        { u0: 9.33, u1: 28, v0: F2, v1: 13.6, mat: MAT.papBall, wainscot: 2.2, crown: MAT.gold, bare },
       ],
     });
     G.add(w);
@@ -349,12 +355,12 @@ export function buildShell(root) {
       outer: [{ u0: 0, u1: 10, v0: F1, v1: AT, mat: MAT.siding }],
       inner: [
         { u0: 0, u1: 10, v0: F1, v1: 7.0, mat: MAT.papLibrary, wainscot: 2.0 },
-        { u0: 0, u1: 10, v0: F2, v1: 13.6, mat: MAT.papBall, wainscot: 2.2, crown: MAT.gold },
+        { u0: 0, u1: 10, v0: F2, v1: 13.6, mat: MAT.papBall, wainscot: 2.2, crown: MAT.gold, bare },
       ],
     });
     G.add(w);
     exteriorTrim(G, 10);
-    dressWindow(G, op[0], { curtain: MAT.curtainRose, glowMat: MAT.windowGlow });
+    dressWindow(G, op[0], { curtain: MAT.curtainRose, glowMat: MAT.windowGlow, trimInside: !bare });
     place(G, -14, 0, -5, -Math.PI / 2);
     root.add(G);
     facades.left = G;
@@ -429,11 +435,11 @@ export function buildShell(root) {
     boxA(13.58, 13.7, y0, y1, -4.6, 4.7, MAT.walnut, S);
   }
   // partitions (never dissolve)
-  const part = (x, v0, v1, op, leftMat, rightMat, lw, rw) => {
+  const part = (x, v0, v1, op, leftMat, rightMat, lw, rw, bareLeft = false) => {
     const g = buildWall({
       openings: op, t: 0.4, split: 0.2,
       outer: [{ u0: 0, u1: 9.2, v0, v1, mat: rightMat }],
-      inner: [{ u0: 0, u1: 9.2, v0, v1: v1 - 0.0, mat: leftMat, wainscot: lw }],
+      inner: [{ u0: 0, u1: 9.2, v0, v1: v1 - 0.0, mat: leftMat, wainscot: lw, bare: bareLeft }],
       trims: true,
     });
     // add the right-side trims manually (buildWall trims only the inner side)
@@ -449,7 +455,7 @@ export function buildShell(root) {
   const doorF1 = [{ u0: -0.1, u1: 2.3, v0: F1, v1: 4.4 }];
   part(-4.67, F1, 7.0, doorF1, MAT.papLibrary, MAT.papEyes, 2.0, { h: 2.0, mat: MAT.wainscotDark });
   part(4.67, F1, 7.0, doorF1, MAT.papEyes, MAT.papConserv, 2.0, { h: 1.6, mat: MAT.wainscot });
-  part(4.67, F2, 13.6, [{ u0: 6.9, u1: 9.3, v0: F2, v1: 11.0 }], MAT.papBall, MAT.papSeance, 2.2, { h: 1.8, mat: MAT.wainscot });
+  part(4.67, F2, 13.6, [{ u0: 6.9, u1: 9.3, v0: F2, v1: 11.0 }], MAT.papBall, MAT.papSeance, 2.2, { h: 1.8, mat: MAT.wainscot }, bare);
   // door casings for the track openings in partitions
   for (const x of [-4.67, 4.67]) {
     boxA(x - 0.3, x + 0.3, 4.4, 4.75, 2.25, 4.6, MAT.walnut, S);
@@ -482,8 +488,10 @@ function buildEndlessHall(S) {
     const y0 = D.F1;
     // floor, walls, ceiling slices
     boxA(-w / 2, w / 2, y0 - 0.1, y0, zb, za, MAT.velvetRed, S);
-    boxA(-w / 2 - 0.15, -w / 2, y0, y0 + h, zb, za, MAT.papBase, S);
-    boxA(w / 2, w / 2 + 0.15, y0, y0 + h, zb, za, MAT.papBase, S);
+    // the Endless Hall's wallpaper, shrinking with the corridor so the pattern sells the perspective
+    const ps = w / 2.8, base = MAT.papEyes.userData.uvScale;
+    const wallUV = Array.isArray(base) ? [base[0] * ps, base[1] * ps] : base * ps;
+    for (const x of [-w / 2 - 0.15, w / 2]) boxA(x, x + 0.15, y0, y0 + h, zb, za, MAT.papEyes, S).userData.uvScale = wallUV;
     boxA(-w / 2 - 0.15, w / 2 + 0.15, y0 + h, y0 + h + 0.15, zb, za, MAT.woodDark, S);
     // portal frame every slice
     const s = w / 2.8;
@@ -656,6 +664,7 @@ export function buildTower(root) {
   const facets = [];
   const portraits = [];
   const H0 = 6.6;
+  const Hp0 = 2.5, topY0 = 6.2, maxS = 4.4;   // portrait height at rest, its top, and how far the room stretches
   const stretchPortraitIdx = { 3: 0, 4: 1, 5: 2, 6: 3 }; // facets 135,180,225,270 degrees
   for (let i = 0; i < 8; i++) {
     const a = i * Math.PI / 4;
@@ -677,17 +686,18 @@ export function buildTower(root) {
     if (stretchPortraitIdx[i] !== undefined) {
       const tx = T.stretch[stretchPortraitIdx[i]].clone();
       tx.needsUpdate = true;
-      const pm = paintingMat(tx, { ei: 0.22 });
-      const pw = 1.5;
+      const pm = paintingMat(tx, { ei: T.stretchGlow ?? 0.22 });   // the painted versions are dark and need the extra glow
+      // as wide as the painting's proportions ask at full stretch, up to what fits between the octagon's corners
+      const pw = Math.min(1.76, tx.image.width / tx.image.height * (Hp0 + maxS));
       const pg = new THREE.PlaneGeometry(pw, 1); pg.translate(0, -0.5, 0);
       const pmesh = new THREE.Mesh(pg, pm);
       pmesh.position.set(0, 0, apo - th - 0.05); pmesh.rotation.y = Math.PI; // faces inward
       fg.add(pmesh);
       const frameM = MAT.gold;
-      const fL = box(0.14, 1, 0.1, frameM, -pw / 2 - 0.07, 0, apo - th - 0.06, fg);
-      const fR = box(0.14, 1, 0.1, frameM, pw / 2 + 0.07, 0, apo - th - 0.06, fg);
-      const fT = box(pw + 0.28, 0.16, 0.12, frameM, 0, 0, apo - th - 0.06, fg);
-      const fB = box(pw + 0.28, 0.16, 0.12, frameM, 0, 0, apo - th - 0.06, fg);
+      const fL = box(0.1, 1, 0.1, frameM, -pw / 2 - 0.05, 0, apo - th - 0.06, fg);
+      const fR = box(0.1, 1, 0.1, frameM, pw / 2 + 0.05, 0, apo - th - 0.06, fg);
+      const fT = box(pw + 0.2, 0.16, 0.12, frameM, 0, 0, apo - th - 0.06, fg);
+      const fB = box(pw + 0.2, 0.16, 0.12, frameM, 0, 0, apo - th - 0.06, fg);
       portraits.push({ mesh: pmesh, tex: tx, fL, fR, fT, fB });
     }
     TG.add(fg);
@@ -760,7 +770,6 @@ export function buildTower(root) {
 
   // stretch state
   const st = { s: 0, target: 0, busy: false };
-  const Hp0 = 2.5, topY0 = 6.2, maxS = 4.4;
   onUpdate((t, dt) => {
     const s0 = st.s;
     st.s += Math.sign(st.target - st.s) * Math.min(Math.abs(st.target - st.s), dt * (st.target > st.s ? 0.22 : 0.4));
