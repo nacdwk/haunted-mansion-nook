@@ -71,7 +71,7 @@ On `localhost` you can skip the title card while developing: `?autoenter` enters
 
 ## How it's built
 
-There are no image, model or audio files. Every mesh is built from primitives, every texture (wallpapers, wood, slate, soil strata, all the portraits, the faces in the crystal ball and on the busts) is painted onto canvases at load time, and all sound is generated with the Web Audio API.
+Apart from the Grand Hall's baked set (see below), there are no image, model or audio files. Every mesh is built from primitives, every texture (wallpapers, wood, slate, soil strata, all the portraits, the faces in the crystal ball and on the busts) is painted onto canvases at load time, and all sound is generated with the Web Audio API.
 
 | File | What it does |
 |---|---|
@@ -88,6 +88,8 @@ There are no image, model or audio files. Every mesh is built from primitives, e
 | `js/audio.js` | The synthesizer, the score and sound effects |
 | `js/post.js` | Bloom, tilt-shift miniature blur and colour grade |
 | `js/ui.js` | Picking, hover labels, room panels, the dock, captions and the ride overlay |
+| `js/baked.js` | Loads the Blender-built Grand Hall and draws it with its baked light |
+| `blender/` | The Blender script that models and light-bakes the Grand Hall, and `bake.sh` to rebuild `assets/` |
 
 A few techniques keep it running at 60 fps:
 
@@ -97,6 +99,29 @@ A few techniques keep it running at 60 fps:
 - Lights are never added, removed or hidden after start-up, because that would force every shader to recompile.
 - The facade melts with a 3D-noise dissolve shader whose edges glow like ectoplasm.
 - In the mirror, the hitchhiker is switched on only for the reflection's render pass, so you can see him in the glass but not beside you.
+
+## The baked Grand Hall (experiment)
+
+![The Grand Hall, procedural and baked](docs/grand-hall-baked.jpg)
+
+On this branch the Grand Hall's set is modelled in Blender and lit with Cycles instead of being built from primitives at load time. The new set has a coffered ceiling, fluted gilt pilasters, raised panels, dentil cornices, turned balusters on the gallery, a veined marble fireplace with a mirror overmantel, a pipe organ with a three-manual console, an inlaid parquet floor with a star medallion, curtained windows and wall sconces. The residents, the chandelier, the cake and the portraits are still the procedural ones.
+
+- `blender/grand_hall.py` builds the set and removes faces nobody can see. It then bakes two lightmaps: warm (chandelier, candles, fire) and cool (moonlight, the ghosts' glow, and the house's sky and fill light with ambient occlusion). Finally it exports Draco-compressed geometry.
+- `js/baked.js` draws the set with one cheap shader. It reads the lightmaps, maps the site's painted textures onto the surfaces and adds the lantern. Polished floors and marble show glints of the flames, and gilt gets a fake reflection.
+- Because the two lightmaps are separate, the hall still dims for the lantern, brightens on hover, flickers with the fire and flashes with lightning. Its wall dressing melts away with the facades.
+- Rebuild with `blender/bake.sh --size 2048 --samples 256`, which takes about 40 seconds on an M4 GPU. To compare, add `?baked=0` to the URL for the procedural hall. If the baked files fail to load, the site falls back to the procedural hall on its own.
+
+Measured in headless Chrome on an M4 MacBook, against the same views in the procedural version:
+
+| | Procedural | Baked |
+|---|---|---|
+| Download for the whole page (cache off) | 683 KB | 1,293 KB (+610 KB: 496 KB of model and lightmaps, ~100 KB of glTF/Draco loaders) |
+| GPU time per frame at Retina size, whole hall in view | 13.5–15.9 ms | 13.4–14.2 ms |
+| GPU time per frame at Retina size, close-up of the hall | 13.0–13.9 ms | 7.2–8.0 ms |
+| GPU time per frame at Retina size, riding through the hall | 51.2 ms | 43.4 ms |
+| Draw calls (with shadow pass) / triangles | 659 / 248k | 668 / 274k |
+
+The baked hall has more geometry but costs less to draw where it fills the screen, because its surfaces don't add up a dozen point lights for every pixel. The price is download size.
 
 ## Disclaimer
 

@@ -18,6 +18,13 @@ const frame = () => new Promise((r) => { let done = false; const go = () => { if
 
 async function boot() {
   W.state.reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  // the Blender-built Grand Hall downloads while everything else is set up; ?baked=0 shows the procedural one,
+  // which is also the fallback if anything about it fails to load
+  const bakedHall = new URLSearchParams(location.search).get('baked') === '0' ? null
+    : Promise.race([
+      import('./baked.js').then(async (m) => ({ hall: await m.loadBakedHall(), add: m.addBakedHall })),
+      new Promise((_, no) => setTimeout(() => no(new Error('timed out')), 25000)),
+    ]).catch((e) => { console.warn('Baked Grand Hall unavailable, building the procedural one instead:', e); return null; });
   let renderer;
   try {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
@@ -83,6 +90,8 @@ async function boot() {
 
   status('Raising the walls…');
   await frame();
+  const baked = bakedHall && await bakedHall;
+  if (baked) W.bakedHall = baked.hall;
   const world = new THREE.Group(); world.name = 'world';
   scene.add(world);
   W.world = world;
@@ -95,6 +104,7 @@ async function boot() {
   status('Waking the residents…');
   await frame();
   buildRooms(world);
+  if (baked) baked.add(world);
   status('Digging the graveyard…');
   await frame();
   buildOutside(world);
@@ -137,6 +147,7 @@ async function boot() {
     if (renderer.compileAsync) await renderer.compileAsync(scene, camera); else renderer.compile(scene, camera);
   } catch (e) { /* ignore */ }
   renderer.setRenderTarget(null);
+  performance.mark('nook-ready');
   W.ui.showIntro();
   document.getElementById('loader')?.classList.add('done');
   window.__W = W;
