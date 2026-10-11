@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="An interactive 3D book-nook diorama of the Haunted Mansion ride, built in the browser with three.js. An unofficial fan tribute.">
+<title>Haunted Mansion Nook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=IM+Fell+English:ital@0;1&display=swap">
+<style>
+  /* Layout: a full-bleed WebGL stage; antique brass-and-plum plaques float at the edges like the labels on a book-nook kit. */
+  :root {
+    --void: #0b0816;
+    --plum: rgba(20, 13, 36, 0.84);
+    --plum-solid: #171026;
+    --ink: #efe4cf;
+    --ink-dim: #b8aac8;
+    --brass: #c9a35b;
+    --brass-dim: #7d6440;
+    --ecto: #8ff5d2;
+    --ecto-dim: rgba(143, 245, 210, 0.16);
+    --shadow: rgba(4, 2, 10, 0.65);
+    --f-display: "IM Fell English SC", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --f-body: "IM Fell English", "Iowan Old Style", "Palatino Linotype", Georgia, serif;
+    --gutter: 16px;
+    color-scheme: dark;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; background: var(--void); color: var(--ink); overflow: hidden; }
+  body { font-family: var(--f-body); -webkit-font-smoothing: antialiased; }
+  button { font: inherit; color: inherit; }
+  #stage { position: fixed; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; outline: none; }
+  .hidden { display: none !important; }
+  .ui { position: fixed; z-index: 10; transition: opacity .8s ease, transform .8s ease; }
+  .ui.off { opacity: 0; pointer-events: none; transform: translateY(8px); }
+  .plaque {
+    background: var(--plum); border: 1px solid var(--brass-dim); border-radius: 3px;
+    box-shadow: 0 10px 40px var(--shadow), inset 0 0 0 3px rgba(201, 163, 91, 0.07);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  }
+  .plaque::before, .plaque::after { content: ""; position: absolute; width: 10px; height: 10px; border: 1px solid var(--brass); pointer-events: none; }
+  .plaque::before { top: 4px; left: 4px; border-right: none; border-bottom: none; }
+  .plaque::after { bottom: 4px; right: 4px; border-left: none; border-top: none; }
+  .sc { font-family: var(--f-display); letter-spacing: .08em; }
+  :focus-visible { outline: 2px solid var(--ecto); outline-offset: 3px; }
+
+  /* loader */
+  #loader { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 55%, #1d1434 0%, var(--void) 70%); transition: opacity 1.4s ease; }
+  #loader.done { opacity: 0; pointer-events: none; }
+  .candle { position: relative; width: 22px; height: 70px; margin: 0 auto 26px; }
+  .candle i { position: absolute; bottom: 0; left: 0; width: 22px; height: 52px; background: linear-gradient(90deg, #cbbf9f, #f3ead2 45%, #b9ab88); border-radius: 3px 3px 2px 2px; }
+  .candle b { position: absolute; left: 50%; bottom: 52px; width: 12px; height: 22px; margin-left: -6px; border-radius: 50% 50% 45% 45% / 65% 65% 35% 35%; background: radial-gradient(ellipse at 50% 70%, #fff6d8 0%, #ffc860 40%, rgba(255,140,40,.0) 75%); filter: blur(.4px); animation: flick 1.6s infinite ease-in-out; transform-origin: 50% 100%; box-shadow: 0 0 40px 12px rgba(255, 170, 70, .28); }
+  @keyframes flick { 0%,100% { transform: scale(1, 1) rotate(-1deg); } 30% { transform: scale(.94, 1.08) rotate(2deg); } 60% { transform: scale(1.04, .93) rotate(-2deg); } }
+  #loader-status { font-style: italic; color: var(--brass); text-align: center; font-size: 17px; }
+
+  /* title card */
+  #intro { inset: 0; display: grid; place-items: center; padding-inline: var(--gutter); z-index: 30; background: radial-gradient(ellipse at 50% 50%, rgba(11,8,22,0.2) 0%, rgba(11,8,22,0.78) 75%); }
+  .card { position: relative; text-align: center; max-width: 560px; padding: 34px 38px 30px; }
+  .card .kicker { font-family: var(--f-display); color: var(--brass); letter-spacing: .26em; font-size: 12px; text-transform: uppercase; }
+  .card h1 { font-family: var(--f-display); font-weight: 400; font-size: clamp(38px, 7vw, 66px); line-height: .98; margin: 14px 0 8px; letter-spacing: .02em; text-wrap: balance; text-shadow: 0 0 28px rgba(143,245,210,.25); }
+  .card h1 small { display: block; font-size: .38em; letter-spacing: .32em; color: var(--ink-dim); margin-bottom: 6px; }
+  .card p { font-style: italic; color: var(--ink-dim); font-size: 18px; line-height: 1.45; margin: 8px auto 22px; max-width: 42ch; text-wrap: balance; }
+  .rule { width: 160px; height: 14px; margin: 0 auto; background:
+      radial-gradient(circle at 50% 50%, var(--brass) 0 3px, transparent 3.5px),
+      linear-gradient(90deg, transparent, var(--brass-dim) 20%, var(--brass-dim) 42%, transparent 46%, transparent 54%, var(--brass-dim) 58%, var(--brass-dim) 80%, transparent) center / 100% 1px no-repeat; }
+  .enter-row { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; margin-top: 4px; }
+  .btn { cursor: pointer; border: 1px solid var(--brass); background: linear-gradient(180deg, rgba(201,163,91,.18), rgba(201,163,91,.04)); color: var(--ink); padding: 11px 22px; border-radius: 2px; font-family: var(--f-display); letter-spacing: .12em; font-size: 15px; transition: background .25s, box-shadow .25s, color .25s; }
+  .btn:hover { background: linear-gradient(180deg, rgba(143,245,210,.22), rgba(143,245,210,.05)); border-color: var(--ecto); box-shadow: 0 0 22px rgba(143,245,210,.25); }
+  .btn.quiet { border-color: var(--brass-dim); color: var(--ink-dim); }
+  .fineprint { margin-top: 18px; font-size: 13px; color: var(--ink-dim); opacity: .8; }
+
+  /* hud */
+  #hud-title { top: max(var(--gutter), env(safe-area-inset-top, 0px)); left: var(--gutter); padding: 10px 16px 11px; }
+  #hud-title .t { font-family: var(--f-display); font-size: 21px; letter-spacing: .05em; }
+  #hud-title .s { font-style: italic; color: var(--ink-dim); font-size: 13.5px; margin-top: 1px; }
+  #haunts { top: max(var(--gutter), env(safe-area-inset-top, 0px)); right: var(--gutter); padding: 9px 14px 10px; text-align: right; cursor: help; }
+  #haunts .lbl { font-family: var(--f-display); font-size: 12px; letter-spacing: .16em; color: var(--brass); }
+  #haunts .row { display: flex; gap: 3px; margin-top: 5px; justify-content: flex-end; }
+  #haunts svg { width: 15px; height: 18px; }
+  #haunts svg path { fill: rgba(239,228,207,.14); stroke: rgba(239,228,207,.35); stroke-width: 1; transition: fill .6s, stroke .6s; }
+  #haunts svg.got path { fill: var(--ecto); stroke: var(--ecto); filter: drop-shadow(0 0 4px rgba(143,245,210,.8)); }
+  #haunts .hint { font-style: italic; font-size: 12.5px; color: var(--ink-dim); margin-top: 4px; max-width: 200px; }
+
+  /* dock */
+  #dock { left: 50%; bottom: calc(var(--gutter) + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%); display: flex; align-items: stretch; gap: 4px; padding: 6px; max-width: calc(100vw - 2 * var(--gutter)); }
+  #dock.off { transform: translate(-50%, 10px); }
+  .tool { position: relative; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 64px; padding: 8px 8px 6px; cursor: pointer; background: transparent; border: 1px solid transparent; border-radius: 2px; color: var(--ink-dim); transition: color .2s, border-color .2s, background .2s; }
+  .tool svg { width: 24px; height: 24px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .tool span { font-family: var(--f-display); font-size: 11.5px; letter-spacing: .09em; white-space: nowrap; }
+  .tool:hover { color: var(--ink); background: rgba(201,163,91,.08); }
+  .tool[aria-pressed="true"] { color: var(--ecto); border-color: rgba(143,245,210,.35); background: var(--ecto-dim); }
+  .tool.ride { color: var(--ink); background: linear-gradient(180deg, rgba(150,96,214,.42), rgba(70,40,120,.42)); border-color: rgba(201,163,91,.6); padding-inline: 14px; }
+  .tool.ride:hover { box-shadow: 0 0 20px rgba(160,110,230,.45); }
+  .sep { width: 1px; background: linear-gradient(transparent, var(--brass-dim), transparent); margin: 4px 2px; }
+  #rooms-menu { position: absolute; bottom: calc(100% + 10px); left: 50%; transform: translateX(-50%); padding: 8px; min-width: 220px; display: grid; gap: 2px; }
+  #rooms-menu button { text-align: left; background: none; border: none; padding: 7px 10px; cursor: pointer; font-family: var(--f-display); letter-spacing: .06em; font-size: 15px; color: var(--ink-dim); border-radius: 2px; }
+  #rooms-menu button:hover { color: var(--ink); background: rgba(143,245,210,.08); }
+
+  /* room panel */
+  #panel { right: var(--gutter); top: 50%; transform: translateY(-50%); width: min(360px, calc(100vw - 2 * var(--gutter))); padding: 22px 22px 16px; max-height: calc(100% - 200px); overflow-y: auto; }
+  #panel.off { transform: translate(14px, -50%); }
+  #panel .eyebrow { font-family: var(--f-display); font-size: 11.5px; letter-spacing: .22em; color: var(--brass); }
+  #panel h2 { font-family: var(--f-display); font-weight: 400; font-size: 30px; margin: 4px 0 10px; line-height: 1.05; text-wrap: balance; }
+  #panel p { font-style: italic; font-size: 16.5px; line-height: 1.5; color: var(--ink-dim); margin: 0 0 14px; }
+  #panel .acts { display: grid; gap: 6px; margin-bottom: 14px; }
+  #panel .act { display: flex; align-items: center; gap: 10px; text-align: left; cursor: pointer; padding: 8px 10px; border: 1px solid rgba(201,163,91,.28); background: rgba(201,163,91,.05); border-radius: 2px; font-size: 16px; transition: border-color .2s, background .2s, color .2s; }
+  #panel .act:hover { border-color: var(--ecto); background: var(--ecto-dim); color: #fff; }
+  #panel .act svg { flex: none; width: 14px; height: 17px; }
+  #panel .act svg path { fill: var(--ecto); opacity: .8; }
+  #panel .foot { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(201,163,91,.2); padding-top: 10px; }
+  #panel .nav { cursor: pointer; background: none; border: none; color: var(--ink-dim); font-family: var(--f-display); letter-spacing: .08em; font-size: 13px; padding: 6px 4px; }
+  #panel .nav:hover { color: var(--ecto); }
+  #panel .close { position: absolute; top: 10px; right: 12px; cursor: pointer; background: none; border: none; color: var(--ink-dim); font-size: 22px; line-height: 1; padding: 4px 6px; }
+  #panel .close:hover { color: var(--ink); }
+
+  /* hover label */
+  #label { position: fixed; z-index: 20; pointer-events: none; padding: 6px 11px 7px; transform: translate(14px, -50%); opacity: 0; transition: opacity .18s; white-space: nowrap; }
+  #label.on { opacity: 1; }
+  #label .n { font-family: var(--f-display); font-size: 15px; letter-spacing: .05em; }
+  #label .h { font-style: italic; font-size: 12.5px; color: var(--ecto); }
+
+  /* captions */
+  #caption { left: 50%; transform: translateX(-50%); bottom: calc(108px + env(safe-area-inset-bottom, 0px)); width: min(720px, calc(100vw - 2 * var(--gutter))); text-align: center; pointer-events: none; z-index: 25; }
+  #caption .who { font-family: var(--f-display); font-size: 12px; letter-spacing: .24em; color: var(--ecto); text-transform: lowercase; min-height: 14px; }
+  #caption .line { font-style: italic; font-size: clamp(18px, 2.4vw, 24px); line-height: 1.35; text-shadow: 0 2px 14px #000, 0 0 30px rgba(11,8,22,.9); text-wrap: balance; margin-top: 2px; }
+  #caption.off { transform: translate(-50%, 6px); }
+
+  /* ride overlay */
+  .bar { position: fixed; left: 0; right: 0; height: 9vh; background: #050308; z-index: 15; transition: transform 1.2s cubic-bezier(.6,0,.2,1); pointer-events: none; }
+  #bar-top { top: 0; transform: translateY(-101%); }
+  #bar-bot { bottom: 0; transform: translateY(101%); }
+  body.riding #bar-top, body.riding #bar-bot { transform: translateY(0); }
+  body.riding #caption { bottom: calc(10vh + 10px); }
+  #ride-ui { top: calc(9vh + 12px); right: var(--gutter); display: flex; gap: 8px; align-items: center; z-index: 26; }
+  #ride-steps { position: fixed; top: calc(4.5vh - 8px); left: 50%; transform: translateX(-50%); display: flex; gap: 12px; z-index: 26; transition: opacity .8s; }
+  #ride-steps span { font-family: var(--f-display); font-size: 11px; letter-spacing: .14em; color: rgba(239,228,207,.32); transition: color .6s; white-space: nowrap; }
+  #ride-steps span.on { color: var(--ecto); text-shadow: 0 0 10px rgba(143,245,210,.6); }
+  #ride-steps span.done { color: rgba(239,228,207,.6); }
+  #ride-tip { position: fixed; bottom: calc(4.5vh - 9px); left: 50%; transform: translateX(-50%); font-style: italic; font-size: 13px; color: var(--ink-dim); z-index: 26; white-space: nowrap; }
+
+  /* toast */
+  #toast { left: 50%; top: calc(var(--gutter) + 70px); transform: translateX(-50%); padding: 9px 16px; font-style: italic; font-size: 15px; color: var(--ink); text-align: center; max-width: calc(100vw - 2 * var(--gutter)); }
+  #toast.off { transform: translate(-50%, -6px); }
+
+  /* the hitchhiker who follows you home */
+  #hitch { position: fixed; z-index: 40; left: 0; top: 0; width: 46px; height: 58px; pointer-events: auto; cursor: pointer; opacity: 0; transition: opacity 1.2s; filter: drop-shadow(0 0 10px rgba(143,245,210,.7)); }
+  #hitch.on { opacity: .92; }
+  #hitch path { fill: rgba(190,255,232,.82); }
+
+  @media (max-width: 620px) {
+    #hud-title .s { display: none; }
+    #hud-title { padding: 8px 12px 9px; max-width: calc(100vw - 2 * var(--gutter) - 128px); }
+    #hud-title .t { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    #haunts { padding: 7px 10px 8px; }
+    #haunts .lbl { font-size: 10px; letter-spacing: .1em; }
+    #haunts svg { width: 10px; height: 12px; }
+    #haunts .row { gap: 2px; }
+    .tool { min-width: 50px; padding-inline: 4px; }
+    .tool span { font-size: 9.5px; letter-spacing: .04em; }
+    .tool svg { width: 21px; height: 21px; }
+    .sep { display: none; }
+    #panel { top: auto; bottom: calc(92px + env(safe-area-inset-bottom, 0px)); transform: none; max-height: 44vh; }
+    #panel.off { transform: translateY(12px); }
+    #ride-steps { display: none; }
+    #haunts .hint { display: none; }
+    #caption { bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .ui, .bar, #label { transition-duration: .01s !important; }
+    .candle b { animation: none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="stage" tabindex="0" aria-label="A miniature haunted mansion diorama. Drag to turn it, scroll to lean in, click a room to look inside."></canvas>
+
+<div id="loader"><div><div class="candle" aria-hidden="true"><i></i><b></b></div><div id="loader-status">Lighting the candles…</div></div></div>
+
+<div id="intro" class="ui off" role="dialog" aria-labelledby="intro-title">
+  <div class="card plaque">
+    <div class="kicker">An unofficial book-nook tribute</div>
+    <h1 id="intro-title"><small>The</small>Haunted Mansion</h1>
+    <div class="rule" aria-hidden="true"></div>
+    <p>Nine rooms, a graveyard, and a good many happy haunts, built in miniature and tucked between the books. Open it up, poke the residents, and take the Doom Buggy through.</p>
+    <div class="enter-row">
+      <button class="btn" id="enter-sound">Enter, if you dare</button>
+      <button class="btn quiet" id="enter-quiet">Enter in silence</button>
+    </div>
+    <div class="fineprint">Best with sound. Everything you hear is played live in your browser.</div>
+  </div>
+</div>
+
+<div id="hud-title" class="ui plaque off">
+  <div class="t">The Haunted Mansion</div>
+  <div class="s">a book nook · drag to turn · scroll to lean in</div>
+</div>
+
+<div id="haunts" class="ui plaque off" title="Light the lantern and sweep it over the rooms to find the hidden haunts">
+  <div class="lbl">HIDDEN HAUNTS</div>
+  <div class="row" id="haunt-row"></div>
+  <div class="hint" id="haunt-hint">Light the lantern to find them.</div>
+</div>
+
+<nav id="dock" class="ui plaque off" aria-label="Controls">
+  <button class="tool ride" id="b-ride" title="Ride the Doom Buggy (R)">
+    <svg viewBox="0 0 24 24"><path d="M5 20c-1.2-2.5-1.5-5.8-.6-8.6C5.6 7.6 8.6 5 12 5s6.4 2.6 7.6 6.4c.9 2.8.6 6.1-.6 8.6"/><path d="M7.5 15.5c1.4 1.2 3 1.8 4.5 1.8s3.1-.6 4.5-1.8"/><path d="M4 20h16"/><circle cx="12" cy="11" r="1.6"/></svg>
+    <span>Ride</span>
+  </button>
+  <div class="sep" aria-hidden="true"></div>
+  <button class="tool" id="b-rooms" aria-haspopup="true" aria-expanded="false" title="Visit a room">
+    <svg viewBox="0 0 24 24"><path d="M4 21V9l8-6 8 6v12"/><path d="M4 13h16M12 9v12"/><path d="M8 17h1M15 17h1"/></svg>
+    <span>Rooms</span>
+  </button>
+  <button class="tool" id="b-lantern" aria-pressed="false" title="Lantern (L)">
+    <svg viewBox="0 0 24 24"><path d="M9 6h6l1 3v9l-1 2H9l-1-2V9z"/><path d="M10 3h4M12 3v3"/><path d="M12 12c1 1 1 2.5 0 3.5-1-1-1-2.5 0-3.5z"/></svg>
+    <span>Lantern</span>
+  </button>
+  <button class="tool" id="b-storm" aria-pressed="false" title="Storm (S)">
+    <svg viewBox="0 0 24 24"><path d="M7 15a4 4 0 1 1 .8-7.9A5 5 0 0 1 17.6 8 3.5 3.5 0 0 1 17 15"/><path d="M12 13l-2 4h3l-2 4"/></svg>
+    <span>Storm</span>
+  </button>
+  <button class="tool" id="b-open" aria-pressed="true" title="Open or close the house (O)">
+    <svg viewBox="0 0 24 24"><path d="M3 11l9-7 9 7"/><path d="M5 10v10h14V10"/><path d="M10 20v-5h4v5"/></svg>
+    <span id="b-open-l">Close up</span>
+  </button>
+  <button class="tool" id="b-sound" aria-pressed="false" title="Sound (M)">
+    <svg viewBox="0 0 24 24"><path d="M4 10v4h4l5 4V6L8 10z"/><path id="snd-wave" d="M16 9c1.2 1.6 1.2 4.4 0 6M18.5 7c2.2 2.8 2.2 7.2 0 10"/></svg>
+    <span id="b-sound-l">Sound</span>
+  </button>
+  <div id="rooms-menu" class="plaque hidden" role="menu"></div>
+</nav>
+
+<aside id="panel" class="ui plaque off" aria-live="polite">
+  <button class="close" id="p-close" aria-label="Back to the whole nook">×</button>
+  <div class="eyebrow" id="p-eyebrow">ROOM</div>
+  <h2 id="p-title">The Library</h2>
+  <p id="p-blurb"></p>
+  <div class="acts" id="p-acts"></div>
+  <div class="foot">
+    <button class="nav" id="p-prev">‹ Previous</button>
+    <button class="nav" id="p-next">Next ›</button>
+  </div>
+</aside>
+
+<div id="label" class="plaque"><div class="n" id="label-n"></div><div class="h" id="label-h"></div></div>
+<div id="caption" class="ui off" aria-live="polite"><div class="who" id="cap-who"></div><div class="line" id="cap-line"></div></div>
+<div id="toast" class="ui plaque off"></div>
+
+<div id="bar-top" class="bar" aria-hidden="true"></div>
+<div id="bar-bot" class="bar" aria-hidden="true"></div>
+<div id="ride-ui" class="ui off"><button class="btn quiet" id="b-exit">Leave the ride</button></div>
+<div id="ride-steps" class="ui off" aria-hidden="true"></div>
+<div id="ride-tip" class="ui off">Drag to look around · Esc to leave</div>
+
+<svg id="hitch" viewBox="0 0 46 58" aria-label="A hitchhiking ghost. Click to shoo him away."><path d="M23 2c9 0 15 7 15 17v26c0 3-2 4-4 2l-3-3-3 4c-1.5 2-3 2-4.5 0L20 44l-3.5 4c-1.5 2-3 2-4.5 0l-3-3-2.5 2.5C5 49 3 48 4.5 45L8 37V19C8 9 14 2 23 2z"/><circle cx="18" cy="17" r="2.6" fill="#0b0816"/><circle cx="28" cy="17" r="2.6" fill="#0b0816"/><ellipse cx="23" cy="26" rx="3" ry="4" fill="#0b0816"/><path d="M38 24l6-6" stroke="rgba(190,255,232,.82)" stroke-width="3" stroke-linecap="round" fill="none"/></svg>
+
+<script type="importmap">
+{ "imports": {
+  "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+  "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+} }
+</script>
+<script type="module" src="./js/main.js"></script>
+</body>
+</html>
