@@ -426,33 +426,37 @@ function ballroom(root) {
   });
   const S = new THREE.Group(), G = new THREE.Group(); root.add(G);
   const y0 = D.F2;
-  // the gallery ramp the ride climbs
-  const ax = 4.4, ay = y0, bx = -9.0, by = 13.25;
-  const len = Math.hypot(ax - bx, by - ay), ang = Math.atan2(by - ay, ax - bx);
-  const ramp = new THREE.Group(); ramp.position.set((ax + bx) / 2, (ay + by) / 2 - 0.1, -3.4); ramp.rotation.z = -ang; S.add(ramp);
-  boxA(-len / 2, len / 2, -0.12, 0.08, -1.2, 1.2, MAT.woodDark, ramp);
-  boxA(-len / 2, len / 2, -0.3, -0.12, 1.05, 1.25, MAT.gold, ramp);
-  const rr = mesh(new THREE.PlaneGeometry(len, 0.55), MAT.ironRail, 0, 0.36, 1.2, ramp);
-  { const uv = rr.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * len / 2.2); }
-  boxA(-len / 2, len / 2, 0.62, 0.69, 1.15, 1.27, MAT.gold, ramp);
-  for (let k = 0.15; k < 1; k += 0.22) { const px = lerp(ax, bx, k), py = lerp(ay, by, k); cyl(0.09, 0.11, py - y0, MAT.gold, px, y0 + (py - y0) / 2, -2.3, S, 10); }
-  // organ on the left wall
-  const og = new THREE.Group(); og.position.set(-13.55, y0, 0.9); S.add(og);
-  boxA(0, 1.25, 0, 1.15, -1.7, 1.7, MAT.walnut, og);
-  boxA(0.05, 1.45, 1.1, 1.18, -1.6, 1.6, MAT.walnut, og);
-  for (let k = 0; k < 3; k++) { boxA(0.55 + k * 0.18, 0.75 + k * 0.18, 0.95 + k * 0.12, 1.0 + k * 0.12, -1.4, 1.4, mat('#efe8da', 0.4), og); boxA(0.55 + k * 0.18, 0.62 + k * 0.18, 1.0 + k * 0.12, 1.03 + k * 0.12, -1.4, 1.4, MAT.black, og); }
-  boxA(0, 0.25, 1.15, 5.9, -2.4, 2.4, MAT.walnut, og);
-  const pipes = [];
-  const pipeH = [2.4, 2.9, 3.4, 3.9, 4.3, 4.7, 5.0, 4.7, 4.3, 3.9, 3.4, 2.9, 2.4];
-  pipeH.forEach((h, i) => {
-    const z = -2.1 + i * 0.35;
-    cyl(0.13, 0.13, h, MAT.gold, 0.4, 1.3 + h / 2, z, og, 10);
-    const mouth = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.25, 10), MAT.gold); mouth.position.set(0.4, 1.3 + 0.12, z); mouth.rotation.z = Math.PI; og.add(mouth);
-    boxA(0.5, 0.54, 1.62, 1.72, z - 0.06, z + 0.06, MAT.void, og);
-    pipes.push(new THREE.Vector3(-13.55 + 0.4, y0 + 1.3 + h, 0.9 + z));
-  });
-  boxA(-0.05, 0.6, 5.9, 6.15, -2.6, 2.6, MAT.gold, og);
-  P.chair(S, -12.0, y0, 0.9, -Math.PI / 2, { seat: MAT.velvetRed, back: 0.4 });
+  // with the Blender-built set loaded (js/baked.js) the furniture, organ, fireplace and ramp come from there
+  const baked = W.bakedHall;
+  const pipes = baked ? baked.pipes : [];
+  if (!baked) {
+    // the gallery ramp the ride climbs
+    const ax = 4.4, ay = y0, bx = -9.0, by = 13.25;
+    const len = Math.hypot(ax - bx, by - ay), ang = Math.atan2(by - ay, ax - bx);
+    const ramp = new THREE.Group(); ramp.position.set((ax + bx) / 2, (ay + by) / 2 - 0.1, -3.4); ramp.rotation.z = -ang; S.add(ramp);
+    boxA(-len / 2, len / 2, -0.12, 0.08, -1.2, 1.2, MAT.woodDark, ramp);
+    boxA(-len / 2, len / 2, -0.3, -0.12, 1.05, 1.25, MAT.gold, ramp);
+    const rr = mesh(new THREE.PlaneGeometry(len, 0.55), MAT.ironRail, 0, 0.36, 1.2, ramp);
+    { const uv = rr.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * len / 2.2); }
+    boxA(-len / 2, len / 2, 0.62, 0.69, 1.15, 1.27, MAT.gold, ramp);
+    for (let k = 0.15; k < 1; k += 0.22) { const px = lerp(ax, bx, k), py = lerp(ay, by, k); cyl(0.09, 0.11, py - y0, MAT.gold, px, y0 + (py - y0) / 2, -2.3, S, 10); }
+    // organ on the left wall
+    const og = new THREE.Group(); og.position.set(-13.55, y0, 0.9); S.add(og);
+    boxA(0, 1.25, 0, 1.15, -1.7, 1.7, MAT.walnut, og);
+    boxA(0.05, 1.45, 1.1, 1.18, -1.6, 1.6, MAT.walnut, og);
+    for (let k = 0; k < 3; k++) { boxA(0.55 + k * 0.18, 0.75 + k * 0.18, 0.95 + k * 0.12, 1.0 + k * 0.12, -1.4, 1.4, mat('#efe8da', 0.4), og); boxA(0.55 + k * 0.18, 0.62 + k * 0.18, 1.0 + k * 0.12, 1.03 + k * 0.12, -1.4, 1.4, MAT.black, og); }
+    boxA(0, 0.25, 1.15, 5.9, -2.4, 2.4, MAT.walnut, og);
+    const pipeH = [2.4, 2.9, 3.4, 3.9, 4.3, 4.7, 5.0, 4.7, 4.3, 3.9, 3.4, 2.9, 2.4];
+    pipeH.forEach((h, i) => {
+      const z = -2.1 + i * 0.35;
+      cyl(0.13, 0.13, h, MAT.gold, 0.4, 1.3 + h / 2, z, og, 10);
+      const mouth = new THREE.Mesh(new THREE.ConeGeometry(0.13, 0.25, 10), MAT.gold); mouth.position.set(0.4, 1.3 + 0.12, z); mouth.rotation.z = Math.PI; og.add(mouth);
+      boxA(0.5, 0.54, 1.62, 1.72, z - 0.06, z + 0.06, MAT.void, og);
+      pipes.push(new THREE.Vector3(-13.55 + 0.4, y0 + 1.3 + h, 0.9 + z));
+    });
+    boxA(-0.05, 0.6, 5.9, 6.15, -2.6, 2.6, MAT.gold, og);
+    P.chair(S, -12.0, y0, 0.9, -Math.PI / 2, { seat: MAT.velvetRed, back: 0.4 });
+  }
   const organist = makeGhost({ height: 2.0, width: 0.5, hat: 'hood', arms: 'front', color: 0xa8ffd8 });
   organist.position.set(-12.05, y0 + 0.35, 0.9); organist.rotation.y = -Math.PI / 2; organist.scale.set(1, 0.9, 1); G.add(organist);
   const ost = { play: 0 };
@@ -475,22 +479,24 @@ function ballroom(root) {
     }
   });
   // dining table, birthday cake & diners
-  P.table(S, -4.8, y0, -0.65, 6.0, 1.25, { h: 0.95, cloth: mat('#a99fb8', 0.9) });
+  if (!baked) P.table(S, -4.8, y0, -0.65, 6.0, 1.25, { h: 0.95, cloth: mat('#a99fb8', 0.9) });
   const diners = [];
   [[-7.0, 'top', 0xa8fff0], [-5.8, 'bun', 0xd2c4ff], [-4.6, 'bun', 0xfff0c8], [-3.4, null, 0xa8ffd8], [-2.2, 'bowler', 0xb8e8ff]].forEach(([x, hat, col], i) => {
-    P.chair(S, x, y0, -1.75, 0, { seat: MAT.velvetRed, s: 1.05 });
+    if (!baked) P.chair(S, x, y0, -1.75, 0, { seat: MAT.velvetRed, s: 1.05 });
     const g = makeGhost({ height: i === 2 ? 1.75 : 1.95, width: 0.45, hat, arms: i === 2 ? 'front' : 'down', color: col, flare: 0.9 });
     g.position.set(x, y0 + 0.5, -1.7); g.scale.set(1, 0.85, 1); G.add(g);
     diners.push(g);
   });
-  for (let i = 0; i < 5; i++) {
-    const x = -7.0 + i * 1.2;
-    cyl(0.2, 0.2, 0.02, mat('#f4f0f6', 0.4), x, y0 + 0.96, -0.95, S, 16);
-    cyl(0.035, 0.05, 0.22, MAT.gold, x + 0.3, y0 + 1.06, -0.75, S, 8);
-    cyl(0.06, 0.035, 0.1, MAT.gold, x + 0.3, y0 + 1.2, -0.75, S, 8);
+  if (!baked) {
+    for (let i = 0; i < 5; i++) {
+      const x = -7.0 + i * 1.2;
+      cyl(0.2, 0.2, 0.02, mat('#f4f0f6', 0.4), x, y0 + 0.96, -0.95, S, 16);
+      cyl(0.035, 0.05, 0.22, MAT.gold, x + 0.3, y0 + 1.06, -0.75, S, 8);
+      cyl(0.06, 0.035, 0.1, MAT.gold, x + 0.3, y0 + 1.2, -0.75, S, 8);
+    }
+    P.candelabra(S, -6.4, y0 + 0.95, -0.45, { arms: 3, s: 0.7 });
+    P.candelabra(S, -2.8, y0 + 0.95, -0.45, { arms: 3, s: 0.7 });
   }
-  P.candelabra(S, -6.4, y0 + 0.95, -0.45, { arms: 3, s: 0.7 });
-  P.candelabra(S, -2.8, y0 + 0.95, -0.45, { arms: 3, s: 0.7 });
   const cake = new THREE.Group(); cake.position.set(-4.6, y0 + 0.95, -0.55); S.add(cake);
   cake.userData.keepGroup = true;
   const icing = mat('#f6e8f0', 0.6), sponge = mat('#e8b8c8', 0.7);
@@ -510,7 +516,7 @@ function ballroom(root) {
     diners.forEach((d, i) => { if (i !== 2) d.position.y = y0 + 0.5 + Math.sin(t * 1.6 + i) * 0.05; });
   });
   // fireplace with a lounging ghost on the mantel
-  P.fireplace(S, -10.3, y0, -4.58, 0, { w: 2.7, h: 2.3, stone: MAT.marble });
+  if (!baked) P.fireplace(S, -10.3, y0, -4.58, 0, { w: 2.7, h: 2.3, stone: MAT.marble });
   const lounger = makeGhost({ height: 1.9, width: 0.45, arms: 'up', color: 0xb8fff0, hat: 'top' });
   lounger.position.set(-11.1, y0 + 2.62, -4.0); lounger.rotation.set(0, 0, -Math.PI / 2 + 0.15); G.add(lounger);
   onUpdate((t) => { lounger.position.y = y0 + 2.62 + Math.sin(t * 0.9) * 0.06; lounger.rotation.x = Math.sin(t * 0.6) * 0.1; });
@@ -560,7 +566,7 @@ function ballroom(root) {
       c.g.rotation.y = -c.ph * 3 * wst.speed;
     }
   });
-  P.rugPlane(S, -10.6, y0, 1.6, 2.4, 3.2, T.rugBlue);
+  if (!baked) P.rugPlane(S, -10.6, y0, 1.6, 2.4, 3.2, T.rugBlue);
   // lights
   const chl = new THREE.PointLight(0xffc27a, 24, 16, 1.35); chl.position.set(-5.0, 11.6, 1.6);
   addLight(chl, { room: 'ballroom', flicker: 0.07 });
