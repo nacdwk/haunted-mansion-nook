@@ -34,10 +34,12 @@ function pillar(S, x, z, h = 2.0) {
 
 // ------------------------------------------------------------------ front yard
 function frontYard(S, G) {
-  // porch & steps
-  boxA(-7.7, 7.7, 0, D.F1, 5.0, 7.75, MAT.stoneWarm, S);
-  boxA(-7.8, 7.8, D.F1 - 0.05, D.F1 + 0.02, 4.95, 7.85, MAT.stoneDark, S);
-  for (let i = 0; i < 3; i++) boxA(-2.3 + i * 0.12, 2.3 - i * 0.12, 0, D.F1 - i * 0.27 - 0.0, 7.75, 8.8 - i * 0.36, MAT.stone, S);
+  // porch & steps (the baked exterior brings its own)
+  if (!W.bakedExterior) {
+    boxA(-7.7, 7.7, 0, D.F1, 5.0, 7.75, MAT.stoneWarm, S);
+    boxA(-7.8, 7.8, D.F1 - 0.05, D.F1 + 0.02, 4.95, 7.85, MAT.stoneDark, S);
+    for (let i = 0; i < 3; i++) boxA(-2.3 + i * 0.12, 2.3 - i * 0.12, 0, D.F1 - i * 0.27 - 0.0, 7.75, 8.8 - i * 0.36, MAT.stone, S);
+  }
   // flagstone path
   for (let z = 8.95; z < 10.1; z += 0.55) for (const x of [-0.6, 0.6]) boxA(x - 0.5 + rand(-0.05, 0.05), x + 0.5, 0, 0.05, z, z + 0.48, MAT.flags, S);
   // fence across the front with a gate
@@ -179,8 +181,8 @@ function graveyard(S, G) {
   }
   boxA(15.4, 21.9, -0.02, 0.12, 6.85, 7.0, MAT.stoneDark, S);
   boxA(15.4, 21.9, -0.02, 0.12, 9.4, 9.55, MAT.stoneDark, S);
-  // the spiral tree the ride descends around
-  P.deadTree(S, 22.0, 0, -1.8, { h: 25, r: 0.75, seed: 11, m: MAT.bark, spread: 0.8, crown: true });
+  // the spiral tree the ride descends around (the baked exterior brings a detailed one)
+  if (!W.bakedExterior) P.deadTree(S, 22.0, 0, -1.8, { h: 25, r: 0.75, seed: 11, m: MAT.bark, spread: 0.8, crown: true });
   // tombstones
   const lines = [
     ['DOCTOR GRAVE', 'prescribed rest', 'and rest he gave'],

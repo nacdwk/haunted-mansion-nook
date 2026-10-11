@@ -1,0 +1,51 @@
+{
+ "triangles": 37907,
+ "groups": [
+  "main",
+  "front",
+  "back",
+  "left",
+  "right",
+  "porch",
+  "mansard-front",
+  "mansard-back",
+  "mansard-left",
+  "mansard-right",
+  "roof",
+  "tree"
+ ],
+ "materials": [
+  "bark",
+  "brick",
+  "door",
+  "gold",
+  "iron",
+  "shingle",
+  "shingle_dark",
+  "shutter",
+  "siding",
+  "stone",
+  "stone_dark",
+  "trim",
+  "trim_dark",
+  "wood_dark"
+ ],
+ "samples": 256,
+ "warm": {
+  "scale": 4.647434234619141,
+  "size": 2048,
+  "seconds": 17.2,
+  "mean": 0.26357924938201904,
+  "p50": 0.023117925971746445,
+  "clipped": 0.0007030963897705078
+ },
+ "cool": {
+  "scale": 1.5752828121185303,
+  "size": 2048,
+  "seconds": 16.7,
+  "mean": 0.16954098641872406,
+  "p50": 0.09605042636394501,
+  "clipped": 1.5020370483398438e-05
+ },
+ "seconds": 35.8
+}
