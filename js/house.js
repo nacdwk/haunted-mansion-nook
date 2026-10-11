@@ -488,8 +488,10 @@ function buildEndlessHall(S) {
     const y0 = D.F1;
     // floor, walls, ceiling slices
     boxA(-w / 2, w / 2, y0 - 0.1, y0, zb, za, MAT.velvetRed, S);
-    boxA(-w / 2 - 0.15, -w / 2, y0, y0 + h, zb, za, MAT.papBase, S);
-    boxA(w / 2, w / 2 + 0.15, y0, y0 + h, zb, za, MAT.papBase, S);
+    // the Endless Hall's wallpaper, shrinking with the corridor so the pattern sells the perspective
+    const ps = w / 2.8, base = MAT.papEyes.userData.uvScale;
+    const wallUV = Array.isArray(base) ? [base[0] * ps, base[1] * ps] : base * ps;
+    for (const x of [-w / 2 - 0.15, w / 2]) boxA(x, x + 0.15, y0, y0 + h, zb, za, MAT.papEyes, S).userData.uvScale = wallUV;
     boxA(-w / 2 - 0.15, w / 2 + 0.15, y0 + h, y0 + h + 0.15, zb, za, MAT.woodDark, S);
     // portal frame every slice
     const s = w / 2.8;
@@ -662,6 +664,7 @@ export function buildTower(root) {
   const facets = [];
   const portraits = [];
   const H0 = 6.6;
+  const Hp0 = 2.5, topY0 = 6.2, maxS = 4.4;   // portrait height at rest, its top, and how far the room stretches
   const stretchPortraitIdx = { 3: 0, 4: 1, 5: 2, 6: 3 }; // facets 135,180,225,270 degrees
   for (let i = 0; i < 8; i++) {
     const a = i * Math.PI / 4;
@@ -683,17 +686,18 @@ export function buildTower(root) {
     if (stretchPortraitIdx[i] !== undefined) {
       const tx = T.stretch[stretchPortraitIdx[i]].clone();
       tx.needsUpdate = true;
-      const pm = paintingMat(tx, { ei: 0.22 });
-      const pw = 1.5;
+      const pm = paintingMat(tx, { ei: T.stretchGlow ?? 0.22 });   // the painted versions are dark and need the extra glow
+      // as wide as the painting's proportions ask at full stretch, up to what fits between the octagon's corners
+      const pw = Math.min(1.76, tx.image.width / tx.image.height * (Hp0 + maxS));
       const pg = new THREE.PlaneGeometry(pw, 1); pg.translate(0, -0.5, 0);
       const pmesh = new THREE.Mesh(pg, pm);
       pmesh.position.set(0, 0, apo - th - 0.05); pmesh.rotation.y = Math.PI; // faces inward
       fg.add(pmesh);
       const frameM = MAT.gold;
-      const fL = box(0.14, 1, 0.1, frameM, -pw / 2 - 0.07, 0, apo - th - 0.06, fg);
-      const fR = box(0.14, 1, 0.1, frameM, pw / 2 + 0.07, 0, apo - th - 0.06, fg);
-      const fT = box(pw + 0.28, 0.16, 0.12, frameM, 0, 0, apo - th - 0.06, fg);
-      const fB = box(pw + 0.28, 0.16, 0.12, frameM, 0, 0, apo - th - 0.06, fg);
+      const fL = box(0.1, 1, 0.1, frameM, -pw / 2 - 0.05, 0, apo - th - 0.06, fg);
+      const fR = box(0.1, 1, 0.1, frameM, pw / 2 + 0.05, 0, apo - th - 0.06, fg);
+      const fT = box(pw + 0.2, 0.16, 0.12, frameM, 0, 0, apo - th - 0.06, fg);
+      const fB = box(pw + 0.2, 0.16, 0.12, frameM, 0, 0, apo - th - 0.06, fg);
       portraits.push({ mesh: pmesh, tex: tx, fL, fR, fT, fB });
     }
     TG.add(fg);
@@ -766,7 +770,6 @@ export function buildTower(root) {
 
   // stretch state
   const st = { s: 0, target: 0, busy: false };
-  const Hp0 = 2.5, topY0 = 6.2, maxS = 4.4;
   onUpdate((t, dt) => {
     const s0 = st.s;
     st.s += Math.sign(st.target - st.s) * Math.min(Math.abs(st.target - st.s), dt * (st.target > st.s ? 0.22 : 0.4));

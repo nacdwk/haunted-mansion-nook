@@ -4,7 +4,7 @@ An interactive 3D book-nook diorama of the Haunted Mansion ride, built entirely 
 
 **▶ Visit the nook: <https://nacdwk.github.io/haunted-mansion-nook/>**
 
-*An unofficial fan tribute. All artwork, music, sound and narration here are original and generated in code.*
+*An unofficial fan tribute. The music, sound and narration are original and generated in code. The artwork is too, apart from the Stretching Room's portraits and the Endless Hall's wallpaper (see [Credits](#credits)).*
 
 ![The open nook](docs/overview.jpg)
 
@@ -17,7 +17,7 @@ An interactive 3D book-nook diorama of the Haunted Mansion ride, built entirely 
 
 **Nine rooms and the grounds**
 
-- **Stretching Room** (the tower): its portraits stretch to reveal the TNT keg, the crocodile under the tightrope and the gentlemen sinking in quicksand.
+- **Stretching Room** (the tower): its portraits stretch to reveal the dynamite keg, the crocodile under the tightrope, the gentlemen sinking in quicksand and the widow perched on George's headstone.
 - **Library:** marble busts that turn to watch you, books that fly like birds, a ghost reading by the fire, and a portrait that ages when you look closer.
 - **Endless Hallway:** a forced-perspective corridor with a floating candelabra, plus doors that knock and bulge and a clock that strikes thirteen.
 - **Conservatory:** wilted plants, a raven, and a coffin whose occupant would like to get out.
@@ -71,7 +71,7 @@ On `localhost` you can skip the title card while developing: `?autoenter` enters
 
 ## How it's built
 
-Apart from the Grand Hall's baked set (see below), there are no image, model or audio files. Every mesh is built from primitives, every texture (wallpapers, wood, slate, soil strata, all the portraits, the faces in the crystal ball and on the busts) is painted onto canvases at load time, and all sound is generated with the Web Audio API.
+Apart from the Grand Hall's baked set and the portraits and wallpaper listed under [Credits](#credits), there are no image, model or audio files. Every mesh is built from primitives, every texture (wallpapers, wood, slate, soil strata, all the portraits, the faces in the crystal ball and on the busts) is painted onto canvases at load time, and all sound is generated with the Web Audio API.
 
 | File | What it does |
 |---|---|
@@ -89,6 +89,8 @@ Apart from the Grand Hall's baked set (see below), there are no image, model or 
 | `js/post.js` | Bloom, tilt-shift miniature blur and colour grade |
 | `js/ui.js` | Picking, hover labels, room panels, the dock, captions and the ride overlay |
 | `js/baked.js` | Loads the Blender-built Grand Hall and draws it with its baked light |
+| `js/art.js` | Swaps in the official Stretching Room portraits and Endless Hall wallpaper from `assets/art/`, when those files are present |
+| `tools/prepare_art.py` | Crops the portraits and cuts a seamless wallpaper tile from the source images into `assets/art/` |
 | `blender/` | The Blender script that models and light-bakes the Grand Hall, and `bake.sh` to rebuild `assets/` |
 
 A few techniques keep it running at 60 fps:
@@ -123,6 +125,13 @@ Measured in headless Chrome on an M4 MacBook, against the same views in the proc
 
 The baked hall has more geometry but costs less to draw where it fills the screen, because its surfaces don't add up a dozen point lights for every pixel. The price is download size.
 
+## Credits
+
+- The four Stretching Room portraits are Disney's paintings of the attraction's stretching portraits, taken from Disney Store product images (© Disney).
+- The Endless Hall's wallpaper is Panicked Pixie's recreation of the attraction's wallpaper, from their Redbubble listing, after Disney's original design.
+
+Both are used without permission in this non-commercial fan tribute. If you hold the rights to either and want them taken down, please open an issue. Deleting `assets/art/` puts the house's own painted portraits and its original eye-damask wallpaper back in their place, and `?art=0` shows those versions now.
+
 ## Disclaimer
 
-This is an unofficial, non-commercial fan tribute. It is not affiliated with, sponsored by or endorsed by The Walt Disney Company. "Haunted Mansion" and "Doom Buggy" are names associated with Disney's attraction and are used here only to describe what this diorama pays tribute to. No Disney artwork, audio, lyrics or logos are included; every image, sound and line of narration in this repository is original.
+This is an unofficial, non-commercial fan tribute. It is not affiliated with, sponsored by or endorsed by The Walt Disney Company. "Haunted Mansion" and "Doom Buggy" are names associated with Disney's attraction and are used here only to describe what this diorama pays tribute to. Apart from the artwork listed under Credits, no Disney artwork, audio, lyrics or logos are included, and every other image, sound and line of narration in this repository is original.

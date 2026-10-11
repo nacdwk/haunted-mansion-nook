@@ -26,7 +26,7 @@ export function buildMaterials() {
   T.checkerGreen = TX.checker('#5f7a6a', '#1d2a24');
   T.plaster = TX.plaster('#cbbfae');
   T.plasterCool = TX.plaster('#8f87a0');
-  const eye = TX.eyePaper();
+  const eye = TX.hauntPaper();
   T.papEyes = eye.map; T.papEyesGlow = eye.emissive;
   T.papLibrary = TX.damask('#1d3026', '#2b4636', { accent: '#6b7a3a' });
   T.papConserv = TX.damask('#1f2c2a', '#2c403a');
@@ -101,7 +101,7 @@ export function buildMaterials() {
   MAT.checkerGreen = texMat(T.checkerGreen, { uv: 4, rough: 0.5 });
   MAT.plaster = texMat(T.plaster, { uv: 6 });
   MAT.plasterCool = texMat(T.plasterCool, { uv: 6 });
-  MAT.papEyes = texMat(T.papEyes, { uv: 2.2, emissiveMap: T.papEyesGlow, emissive: '#ffb347', ei: 0.5 });
+  MAT.papEyes = texMat(T.papEyes, { uv: [1.5, 3.0], emissiveMap: T.papEyesGlow, emissive: '#ffb347', ei: 0.5 });
   MAT.papLibrary = texMat(T.papLibrary, { uv: 2.4 });
   MAT.papConserv = texMat(T.papConserv, { uv: 2.4 });
   MAT.papSeance = texMat(T.papSeance, { uv: 2.4 });

@@ -11,6 +11,7 @@ import { buildRide } from './ride.js';
 import { buildFx, buildSoil } from './fx.js';
 import { createAudio } from './audio.js';
 import { buildUI } from './ui.js';
+import { loadOfficialArt, applyOfficialArt } from './art.js';
 
 const canvas = document.getElementById('stage');
 const status = (s) => { const el = document.getElementById('loader-status'); if (el) el.textContent = s; };
@@ -18,13 +19,17 @@ const frame = () => new Promise((r) => { let done = false; const go = () => { if
 
 async function boot() {
   W.state.reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const query = new URLSearchParams(location.search);
+  const timeout = (ms) => new Promise((_, no) => setTimeout(() => no(new Error('timed out')), ms));
   // the Blender-built Grand Hall downloads while everything else is set up; ?baked=0 shows the procedural one,
   // which is also the fallback if anything about it fails to load
-  const bakedHall = new URLSearchParams(location.search).get('baked') === '0' ? null
-    : Promise.race([
-      import('./baked.js').then(async (m) => ({ hall: await m.loadBakedHall(), add: m.addBakedHall })),
-      new Promise((_, no) => setTimeout(() => no(new Error('timed out')), 25000)),
-    ]).catch((e) => { console.warn('Baked Grand Hall unavailable, building the procedural one instead:', e); return null; });
+  const bakedHall = query.get('baked') === '0' ? null
+    : Promise.race([import('./baked.js').then(async (m) => ({ hall: await m.loadBakedHall(), add: m.addBakedHall })), timeout(25000)])
+      .catch((e) => { console.warn('Baked Grand Hall unavailable, building the procedural one instead:', e); return null; });
+  // the official portraits and wallpaper (js/art.js); ?art=0 shows the house's own painted versions
+  const officialArt = query.get('art') === '0' ? null
+    : Promise.race([loadOfficialArt(), timeout(15000)])
+      .catch((e) => { console.warn('Official art unavailable, using the painted versions:', e); return null; });
   let renderer;
   try {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
@@ -55,6 +60,8 @@ async function boot() {
   ]).catch(() => {});
   await frame();
   buildMaterials();
+  const art = officialArt && await officialArt;
+  if (art) applyOfficialArt(art);
   scene.background = T.bg;
 
   // lighting

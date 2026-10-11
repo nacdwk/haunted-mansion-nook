@@ -220,7 +220,8 @@ export function bake(src, parent, { cast = true, receive = true } = {}) {
       const m = o.material;
       if (Array.isArray(m) || m.transparent && m.userData.noBake) { keeps.push(o); return; }
       const g = prepGeo(o.geometry, o.matrixWorld);
-      if (m.userData.uvScale) worldUV(g, m.userData.uvScale);
+      const uvScale = o.userData.uvScale || m.userData.uvScale;   // a mesh may override its material's scale
+      if (uvScale) worldUV(g, uvScale);
       if (!buckets.has(m)) buckets.set(m, []);
       buckets.get(m).push(g);
     }
