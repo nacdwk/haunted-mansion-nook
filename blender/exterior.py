@@ -5,16 +5,17 @@ roof that floats up when the house opens (deck, chimneys and cupola).
     blender -b --factory-startup -P blender/exterior.py -- --out blender/build --size 2048 --samples 256
 
 Writes exterior.glb (objects Ext_<group>: porch, front, back, left, right, mansard-front/back/left/right,
-roof, tree), exterior_warm.png and exterior_cool.png (sqrt-encoded irradiance) and exterior.json.
+roof, and the tower's tower-base, tower0..7 (one per wall of the Stretching Room), tower-upper and the
+live-lit tower-iron), exterior_warm.png and exterior_cool.png (sqrt-encoded irradiance) and exterior.json.
 
 warm: the shelf candle beside the house, the glowing windows, the gas lamps and the cupola.
 cool: the moon, the pink fill light and the night sky, matching js/main.js.
 
 The window panes, iron railings and cresting, weathervane and the ghosts stay procedural, and so does
 everything on the room side of the walls. Coordinates match js/house.js.
-The spiral tree beside the house is grown in detail on the site's own branches (blender/trees.py), and
-the small tree behind the house is regrown as bake-only scenery, so both shadow the walls where the site's
-trees stand.
+The trees are baked with the grounds (grounds.py); here the spiral tree beside the house and the small one
+behind it are only bake-only scenery, so they shadow the walls where the site's trees stand. The lights are
+saved to exterior_lights.json, so the grounds are lit the same way.
 """
 import os, sys, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -22,7 +23,7 @@ import bmesh, bpy
 from mathutils import Vector
 import kit
 import trees
-from kit import M, mat, box, cyl, lathe, sphere, prism, slab, Wall, subtract, runs_at, group, light, blocker, hexcol
+from kit import M, mat, box, cyl, lathe, sphere, prism, slab, slab2d, rod, torus, Wall, subtract, runs_at, group, light, blocker, hexcol
 
 A = kit.args({'out': 'assets', 'size': 2048, 'cool_size': 2048, 'samples': 256})
 kit.reset_scene(A['samples'])
@@ -325,26 +326,80 @@ lathe([(0, 0), (1.95, 0), (2.05, 0.15), (1.6, 0.7), (0.9, 1.3), (0.45, 1.8), (0.
 lathe([(0, 0), (0.12, 0), (0.2, 0.15), (0.2, 0.3), (0.08, 0.45), (0, 0.5)], 0, cy0 + 5.85, 0, M['gold'], seg=12)
 cyl(0.06, 0.06, 1.6, 0, cy0 + 6.3, 0, M['iron'], seg=6)
 
-# ------------------------------------------------------------------ the spiral tree the ride descends around (js/outside.js)
-HELIX = (22.0, -1.8)
-APPROACH = [(13.8, 14.55, 2.3), (16.8, 14.0, 2.0), (19.6, 12.6, 0.6)]     # the track from the attic to the top of the spiral
+# ------------------------------------------------------------------ the stretching tower's outside (js/house.js buildTower)
+TWX, TWZ, TWR = -16.9, 2.0, 3.0
+TAPO, TSIDE, TH0 = TWR * math.cos(math.pi / 8), 2 * TWR * math.sin(math.pi / 8) + 0.08, 6.6
+SD, ST = M['stone_dark'], M['stone']
+group('tower-base')                                # the foundation stays put
+cyl(TWR + 0.35, TWR + 0.25, F1, TWX, 0, TWZ, ST, seg=8, rot=math.pi / 8)
+cyl(TWR + 0.33, TWR + 0.33, 0.12, TWX, F1 - 0.12, TWZ, SD, seg=8, rot=math.pi / 8)
+for i in range(8):                                 # the Stretching Room's walls: each melts on its own and stretches with the room
+    if i == 2:
+        continue                                   # (the side against the house has none)
+    group(f'tower{i}')
+    with kit.frame((TWX, F1, TWZ), ry=i * math.pi / 4):
+        box(-TSIDE / 2, TSIDE / 2, 0.3, TH0 - 0.25, TAPO - 0.14, TAPO, ST)
+        box(-TSIDE / 2, TSIDE / 2, 0, 0.3, TAPO - 0.14, TAPO + 0.05, SD, bevel=0.02)
+        box(-TSIDE / 2, TSIDE / 2, TH0 - 0.25, TH0, TAPO - 0.14, TAPO + 0.06, SD, bevel=0.02)
+        box(TSIDE / 2 - 0.2, TSIDE / 2 + 0.05, 0, TH0, TAPO - 0.02, TAPO + 0.12, SD, bevel=0.02)
+group('tower-upper')                               # rises as the room stretches
+TY0, SP0 = F2, F2 + 13.3
+with kit.frame((TWX, 0, TWZ)):
+    cyl(TWR, TWR, 13.1, 0, TY0 + 0.15, 0, ST, seg=8, rot=math.pi / 8)
+    for yy in (TY0 + 0.15, TY0 + 6.6, TY0 + 13.1):
+        cyl(TWR + 0.18, TWR + 0.18, 0.4, 0, yy - 0.2, 0, SD, seg=8, rot=math.pi / 8)
+        cyl(TWR + 0.1, TWR + 0.1, 0.1, 0, yy - 0.3, 0, SD, seg=8, rot=math.pi / 8)
+    for i in range(8):
+        if i == 2:
+            continue
+        a = i * math.pi / 4
+        with kit.frame((math.sin(a) * TAPO, TY0 + 3.4, math.cos(a) * TAPO), ry=a):   # round-headed window surround (the glass is procedural)
+            box(-0.5, -0.35, -1.0, 0.65, 0, 0.08, SD, bevel=0.012)
+            box(0.35, 0.5, -1.0, 0.65, 0, 0.08, SD, bevel=0.012)
+            slab2d([(0.5 * math.cos(t), 0.65 + 0.5 * math.sin(t)) for t in (math.pi * k / 10 for k in range(11))]
+                   + [(0.35 * math.cos(t), 0.65 + 0.35 * math.sin(t)) for t in (math.pi * k / 10 for k in range(10, -1, -1))], 0, 0.08, SD)
+            box(-0.07, 0.07, 0.98, 1.2, 0, 0.11, SD, bevel=0.012)                   # keystone
+            box(-0.55, 0.55, -1.12, -1.0, 0, 0.2, SD, bevel=0.015)                  # sill
+        if i % 2 == 0:
+            with kit.frame((math.sin(a) * TAPO, TY0 + 9.3, math.cos(a) * TAPO), ry=a):
+                torus(0.5, 0.07, SD, seg=16, ring=5)
+        with kit.frame((0, 0, 0), ry=a):                                             # corbels under the balcony
+            for x in (-0.6, 0.6):
+                slab2d([(TAPO, TY0 + 6.575), (TAPO + 0.78, TY0 + 6.575), (TAPO + 0.78, TY0 + 6.45), (TAPO + 0.15, TY0 + 6.05), (TAPO, TY0 + 6.05)],
+                       x - 0.09, x + 0.09, SD, plane='zy', bevel=0.01, segs=1)
+    cyl(TWR + 0.9, TWR + 0.9, 0.25, 0, TY0 + 6.575, 0, SD, seg=8, rot=math.pi / 8)  # the balcony
+    cyl(TWR + 0.3, TWR + 0.55, 0.35, 0, SP0 - 0.175, 0, M['trim'], seg=8, rot=math.pi / 8)   # eave
+    prof = [(TWR + 0.3, 0.25), (TWR * 0.82, 1.4), (TWR * 0.63, 2.7), (TWR * 0.45, 4.2), (TWR * 0.27, 5.9), (0.2, 7.6)]
+    lathe([(0, 0), (TWR + 0.55, 0)] + prof + [(0, 8.2)], 0, SP0 + 0.15, 0, M['shingle'], seg=8, rot=math.pi / 8)   # the spire, flared
+    for j in range(8):                             # ridge rolls up its edges
+        t = math.pi / 8 + j * math.pi / 4
+        pts = [(r * math.cos(t), SP0 + 0.15 + h, r * math.sin(t)) for r, h in prof]
+        for p0, p1 in zip(pts, pts[1:]):
+            rod(p0, p1, 0.045, M['shingle_dark'], seg=6)
+    for a in (math.pi / 4, -3 * math.pi / 4):      # its two little dormers (glass procedural)
+        with kit.frame((math.sin(a) * 2.25, SP0 + 2.0, math.cos(a) * 2.25), ry=a):
+            box(-0.45, 0.45, 0, 1.1, -0.5, 0.15, ST, bevel=0.02)
+            box(-0.3, -0.225, 0.12, 0.88, 0.15, 0.2, SD)
+            box(0.225, 0.3, 0.12, 0.88, 0.15, 0.2, SD)
+            box(-0.3, 0.3, 0.06, 0.15, 0.15, 0.24, SD, bevel=0.01)
+            box(-0.3, 0.3, 0.85, 0.92, 0.15, 0.2, SD)
+            slab2d([(-0.62, 1.08), (0.62, 1.08), (0, 1.62)], -0.62, 0.3, M['shingle_dark'], bevel=0.015, segs=1)
+    lathe([(0, 0), (0.12, 0), (0.1, 0.08), (0.05, 0.12), (0.05, 0.2), (0, 0.22)], 0, SP0 + 8.18, 0, M['gold'], seg=10)   # finial
+    sphere(0.18, 0, SP0 + 8.5, 0, M['gold'], seg=12)
+    cyl(0.05, 0.05, 1.7, 0, SP0 + 8.65, 0, M['iron'], seg=6)
+group('tower-iron', lit=True)                      # the balcony's railing
+with kit.frame((TWX, 0, TWZ)):
+    rr, half = (TWR + 0.82) * math.cos(math.pi / 8), (TWR + 0.82) * math.sin(math.pi / 8)
+    for i in range(8):
+        if i != 2:
+            with kit.frame((0, 0, 0), ry=i * math.pi / 4):
+                kit.fence(-half, rr, half, rr, TY0 + 6.825, 0.85, M['iron'], gap=0.2, posts=10)
 
-def on_ride(p):
-    """True on the Doom Buggies' path round the tree in js/ride.js, with room for the buggies themselves."""
-    if 2.3 < math.hypot(p[0] - HELIX[0], p[2] - HELIX[1]) < 4.5 and 0.3 < p[1] < 15.2:
-        return True
-    for a, b in zip(APPROACH, APPROACH[1:]):
-        vx, vz = b[0] - a[0], b[2] - a[2]
-        t = max(0.0, min(1.0, ((p[0] - a[0]) * vx + (p[2] - a[2]) * vz) / (vx * vx + vz * vz)))
-        y = a[1] + (b[1] - a[1]) * t
-        if math.hypot(p[0] - a[0] - vx * t, p[2] - a[2] - vz * t) < 1.2 and y - 0.4 < p[1] < y + 2.4:
-            return True
-    return False
+# ------------------------------------------------------------------ the trees nearest the walls
+for ob in trees.spiral(M['bark']) + trees.behind_house(M['bark']):
+    blocker(ob, keep_material=True)                # baked with the grounds (grounds.py); here they only shade the walls
 
-group('tree')
-trees.gnarled(trees.skeleton(HELIX[0], 0.0, HELIX[1], h=25, r=0.75, seed=11, spread=0.8, crown=True), M['bark'], seed=11, keep_out=on_ride)
-
-# ------------------------------------------------------------------ bake-only scenery: the house's insides, the tower, the lawn
+# ------------------------------------------------------------------ bake-only scenery: the house's insides, the lawn
 group('main')
 blocker(box(X0 + SKIN, X1 - SKIN, 0.0, AT, Z0 + SKIN, Z1 - SKIN, M['trim']))
 bm = bmesh.new()                                                     # the attic, snug under the mansard slabs
@@ -359,18 +414,16 @@ attic.data.materials.append(M['trim'])
 bpy.context.scene.collection.objects.link(attic)
 kit.OBJS.append(attic)
 blocker(attic)
-blocker(cyl(3.25, 3.25, 21.0, -16.9, 0.0, 2.0, M['trim'], seg=8, rot=math.pi / 8))       # the stone tower beside the house
-blocker(cyl(3.5, 0.05, 6.0, -16.9, 21.0, 2.0, M['trim'], seg=8, rot=math.pi / 8))
 blocker(box(-60, 80, -0.6, 0.0, -30, 30, mat('lawn', '#26302a', 0.95)), keep_material=True)
 
 
-blocker(trees.tubes(trees.skeleton(-2.6, 0.0, -6.7, h=7, r=0.3, seed=5), M['trim']), only='cool')   # the small tree behind the house
 
 # ------------------------------------------------------------------ lights
 COOL = dict(group='cool')
 light('moon', 'SUN', (46, 62, -38), hexcol('#b9c4ff'), 5.7, aim=(-42, -58, 39), angle=math.radians(1.5), **COOL)
 light('fill', 'SUN', (-40, 30, 60), hexcol('#ff9ec8'), 0.84, aim=(40, -30, -60), shadow=False, **COOL)
-world = kit.sky(tuple(c * 1.1 for c in hexcol('#9a86e0')), tuple(c * 1.1 for c in hexcol('#1a1030')))
+SKY = (tuple(c * 1.1 for c in hexcol('#9a86e0')), tuple(c * 1.1 for c in hexcol('#1a1030')))   # js/main.js's hemisphere light
+world = kit.sky(*SKY)
 light('candle', 'POINT', (48, 18.5, -1), hexcol('#ffa24a'), 344600, size=1.2)
 for x in (-4.0, 4.0):
     light('gas_lamp', 'POINT', (x, 2.95, 9.4), hexcol('#ffb24a'), 30, size=0.12)
@@ -390,6 +443,18 @@ for x in (-8.0, 0.0, 8.0):
 for i in range(8):
     a = i / 8 * math.tau
     light('cupola', 'AREA', (math.sin(a) * 1.9, cy0 + 1.85, math.cos(a) * 1.9), WARM_WINDOW, 15, size=0.9, size_y=1.6, aim=(math.sin(a), 0, math.cos(a)))
+for i in range(8):                                 # the tower's windows (glowing panes on its stone)
+    if i == 2:
+        continue
+    a = i * math.pi / 4
+    n = (math.sin(a), 0, math.cos(a))
+    light('tower_window', 'AREA', (TWX + n[0] * (TAPO + 0.03), TY0 + 3.4, TWZ + n[2] * (TAPO + 0.03)), WARM_WINDOW, 50, size=0.62, size_y=1.9, aim=n)
+    if i % 2 == 0:
+        light('tower_round', 'AREA', (TWX + n[0] * (TAPO + 0.03), TY0 + 9.3, TWZ + n[2] * (TAPO + 0.03)), WARM_WINDOW, 15, size=0.6, aim=n)
+for a in (math.pi / 4, -3 * math.pi / 4):
+    n = (math.sin(a), 0, math.cos(a))
+    light('tower_dormer', 'AREA', (TWX + n[0] * 2.43, SP0 + 2.5, TWZ + n[2] * 2.43), WARM_WINDOW, 8, size=0.4, size_y=0.6, aim=n)
 
+kit.save_lights(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'exterior_lights.json'), SKY)
 kit.build('exterior', 'Ext', A['out'], A['size'], A['cool_size'], A['samples'], cool_world=world,
           hidden=lambda n, c: n[1] < -0.9 and c[1] < 0.02)

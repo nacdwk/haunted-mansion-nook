@@ -71,7 +71,7 @@ On `localhost` you can skip the title card while developing: `?autoenter` enters
 
 ## How it's built
 
-Apart from the two baked sets (the Grand Hall and the outside of the mansion) and the portraits and wallpaper listed under [Credits](#credits), there are no image, model or audio files. Every mesh is built from primitives, every texture (wallpapers, wood, slate, soil strata, all the portraits, the faces in the crystal ball and on the busts) is painted onto canvases at load time, and all sound is generated with the Web Audio API.
+Apart from the baked sets (the Grand Hall, the outside of the mansion and the grounds) and the portraits and wallpaper listed under [Credits](#credits), there are no image, model or audio files. Every mesh is built from primitives, every texture (wallpapers, wood, slate, soil strata, all the portraits, the faces in the crystal ball and on the busts) is painted onto canvases at load time, and all sound is generated with the Web Audio API.
 
 | File | What it does |
 |---|---|
@@ -88,10 +88,10 @@ Apart from the two baked sets (the Grand Hall and the outside of the mansion) an
 | `js/audio.js` | The synthesizer, the score and sound effects |
 | `js/post.js` | Bloom, tilt-shift miniature blur and colour grade |
 | `js/ui.js` | Picking, hover labels, room panels, the dock, captions and the ride overlay |
-| `js/baked.js` | Loads the Blender-built Grand Hall and exterior and draws them with their baked light |
+| `js/baked.js` | Loads the Blender-built Grand Hall, exterior and grounds and draws them with their baked light |
 | `js/art.js` | Swaps in the official Stretching Room portraits and wallpaper and the Endless Hall wallpaper from `assets/art/`, when those files are present |
 | `tools/prepare_art.py` | Crops the portraits, cuts a seamless tile of the Endless Hall wallpaper and redraws the Stretching Room's stripes from the source images into `assets/art/` |
-| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`) and the exterior (`exterior.py`, with its trees grown by `trees.py`), their shared helpers (`kit.py`), and `bake.sh` to rebuild `assets/` |
+| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`), the exterior and tower (`exterior.py`) and the grounds (`grounds.py`), their shared helpers (`kit.py`, and `trees.py` for the dead trees), the house's lights shared between the last two (`exterior_lights.json`), and `bake.sh` to rebuild `assets/` |
 
 A few techniques keep it running at 60 fps:
 
@@ -104,13 +104,13 @@ A few techniques keep it running at 60 fps:
 
 ## Baked sets (experiment)
 
-Two parts of the house are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall and the outside of the mansion. Everything else, including every resident, is still procedural.
+Three parts of the nook are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall, the outside of the mansion with its stretching tower, and the grounds around it. Everything else, including every resident and everything that moves, is still procedural.
 
-- A Python script in `blender/` builds each set (`grand_hall.py` and `exterior.py`, with shared helpers in `kit.py`) and removes faces nobody can see. It then bakes two lightmaps, warm (flames, lamps and lit windows) and cool (moonlight, sky and fill light), and exports Draco-compressed geometry.
+- A Python script in `blender/` builds each set (`grand_hall.py`, `exterior.py` and `grounds.py`, with shared helpers in `kit.py` and `trees.py`) and removes faces nobody can see. It then bakes two lightmaps, warm (flames, lamps and lit windows) and cool (moonlight, sky and fill light), and exports Draco-compressed geometry. Thin ironwork is exported without a lightmap and lit live by the site, though it still shades the baked surfaces around it.
 - `js/baked.js` draws the sets with one cheap shader. It reads the lightmaps, maps the site's painted textures onto the surfaces and adds the lantern.
-- Because the two lightmaps are separate, the sets still dim for the lantern, flicker with the flames and flash with lightning, and their walls melt away with the facades.
-- Rebuild a set with `blender/bake.sh grandhall` or `blender/bake.sh exterior`. Each takes about 45 seconds on an M4 GPU and writes the web-ready files to `assets/`.
-- To compare, add `?baked=0` to the URL for the all-procedural house, or `?exterior=0` for just the procedural exterior. If a baked set fails to load, the site builds the procedural version in its place.
+- Because the two lightmaps are separate, the sets still dim for the lantern, flicker with the flames and flash with lightning. Their walls melt away with the facades, and the tower still stretches.
+- Rebuild a set with `blender/bake.sh grandhall`, `blender/bake.sh exterior` or `blender/bake.sh grounds` (after the exterior, whose house and lights it uses). Each takes under a minute on an M4 GPU and writes the web-ready files to `assets/`.
+- To compare, add `?baked=0` to the URL for the all-procedural nook, or `?exterior=0` or `?grounds=0` for the procedural version of just that set. If a baked set fails to load, the site builds the procedural version in its place.
 
 ### The Grand Hall
 
@@ -138,22 +138,34 @@ The four facades now have clapboard siding over a brick base, corner pilasters a
 
 The moon throws real shadows from the columns, cornices, shutters and sills. The windows spill warm light onto their casings and the portico, and the gas lamps light the porch.
 
+![The stretching tower, procedural and baked](docs/tower-baked.jpg)
+
+The stretching tower's stonework is part of the set: a foundation with a water table, the Stretching Room's walls with plinth and string courses and corner pilasters, banded masonry above with round-headed window surrounds, keystones and sills, ringed round windows, a balcony on corbels with a wrought-iron railing, and a flared shingle spire with ridge rolls, two dormers and a gilt finial. Each of the room's walls melts with its own facet and stretches with the room, and the upper tower rises as it stretches.
+
+The window panes, cresting and ghosts stay procedural. The baked walls don't receive the live shadow map, so the passing Doom Buggies no longer cast shadows on them.
+
+### The grounds
+
+![The graveyard, the crypt from the ride, and the hearse, procedural and baked](docs/grounds-baked.jpg)
+
+The grounds are a set of their own: the graveyard's walls and railings, its tombstones, the crypt, the cellar doors, the busts' pedestals, lamp posts, the tea party's table and chairs and the teeter-totter's stone; the front yard's railings, gate, pillars, gas lamps, flagstones and bushes, and the pet cemetery; the weeping angel behind the house; and the hearse, with a gilded roof gallery, ostrich plumes and spoked wheels. The crypt's green glow, the busts' blue light and the caretaker's lantern are baked onto the stone round them.
+
 ![The spiral tree, procedural and baked](docs/tree-baked.jpg)
 
-The dead tree the ride spirals around is part of the set too. `blender/trees.py` replays the site's own random numbers to get the same branches, then grows a detailed tree on them: a twisting, ridged trunk on buttress roots, surface roots that sink into the lawn, knots and broken-off stubs, forks that split like real wood, and a finer crown of hooked twigs. Twigs that would reach into the Doom Buggies' path are left off. The tree's shadow on the walls comes from the same model, and the small tree behind the house is regrown just to cast its shadow.
+All four dead trees are grown in Blender by `blender/trees.py`, which replays the site's own random numbers to get the same branches. It grows a detailed tree on them: a twisting, ridged trunk on buttress roots, surface roots that sink into the lawn, knots and broken-off stubs, forks that split like real wood, and a finer crown of hooked twigs. The great oak by the tower gets the Spanish moss the site hangs on it. Twigs that would reach into the Doom Buggies' path are left off, and the trees nearest the house shadow its walls in the exterior's bake.
 
-The window panes, iron railings, cresting and ghosts stay procedural. The baked walls don't receive the live shadow map, so the passing Doom Buggies no longer cast shadows on them.
+Everything that moves stays procedural: the busts, the ghosts, the caretaker and his dog, the teapot, the teeter-totter's plank, the horse's harness, the lanterns and the jack-o'-lanterns. So do the painted epitaphs and the crypt's plaque, which sit on the baked stones. The tombstones' sizes and tilts now come from a table shared with the bake.
 
-Measured the same way, with GPU times over three runs each. Both columns include the baked Grand Hall and the official art, so the totals are higher than in the Grand Hall's table:
+Measured the same way, one run each, with the Grand Hall baked and the official art in both columns:
 
-| | Procedural exterior | Baked exterior |
+| | Procedural outside | Baked exterior and grounds |
 |---|---|---|
-| Download for the whole page (cache off) | 1,514 KB | 2,181 KB (+667 KB of model and lightmaps, 98 KB of it the tree) |
-| GPU time per frame at Retina size, whole house in view | 14.4–18.0 ms | 11.2–14.8 ms |
-| GPU time per frame at Retina size, close-up of the portico | 14.7–17.2 ms | 6.2–7.9 ms |
-| Draw calls (with shadow pass) / triangles | 853 / 313k | 863 / 365k |
+| Download for the whole page (cache off) | 1,520 KB | 2,930 KB (+1,410 KB: 659 KB for the exterior and tower, 749 KB for the grounds) |
+| GPU time per frame at Retina size, whole house in view | 10.2 ms | 7.1 ms |
+| GPU time per frame at Retina size, close-up of the portico | 10.5 ms | 5.5 ms |
+| Draw calls (with shadow pass) / triangles | 849 / 313k | 891 / 441k |
 
-The GPU times come from runs before the tree was added. One run with it took 12.6 ms for the whole house and 8.3 ms for the portico close-up, about the same. The baked exterior costs a little less to draw from a distance and about half as much close up. Again, the price is download size.
+The baked outside costs less to draw than the procedural one even with 40% more triangles, because its surfaces don't add up the lights for every pixel. The price, again, is download size.
 
 ## Credits
 

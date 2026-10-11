@@ -7,7 +7,7 @@ lightmap texel density for surfaces that are rarely seen up close.
 
 grand_hall.py predates this module and carries its own copy of these helpers.
 """
-import bpy, bmesh, math, sys, os, json, time
+import bpy, bmesh, math, sys, os, json, time, contextlib
 import numpy as np
 from mathutils import Vector, Matrix
 from mathutils.bvhtree import BVHTree
@@ -72,11 +72,16 @@ def mat(name, color, rough=0.85):
 # ------------------------------------------------------------------ tagged parts
 OBJS, HELP, LIGHTS = [], [], []
 GROUPS = ['main']
+LIT = set()
 _tag = {'grp': 0, 'lowres': 0}
-def group(name, lowres=False):
-    """Every part made after this call goes into export group `name`."""
+def group(name, lowres=False, lit=False):
+    """Every part made after this call goes into export group `name`. A lit group is exported without a
+    lightmap for the site to light live (thin ironwork, which would only crowd the lightmap); it still shades
+    the baked parts around it."""
     if name not in GROUPS:
         GROUPS.append(name)
+    if lit:
+        LIT.add(name)
     _tag['grp'] = GROUPS.index(name)
     _tag['lowres'] = int(lowres)
 
@@ -96,6 +101,19 @@ def finish(bm, m, name='part'):
     bpy.context.scene.collection.objects.link(ob)
     OBJS.append(ob)
     return ob
+
+_THREE_TO_BLENDER = Matrix(((1, 0, 0, 0), (0, 0, -1, 0), (0, 1, 0, 0), (0, 0, 0, 1)))
+
+@contextlib.contextmanager
+def frame(pos=(0, 0, 0), ry=0.0, rz=0.0, rx=0.0, s=1.0):
+    """Parts made inside are placed the way a three.js group places its children: scaled by s, rotated
+    (Euler XYZ, as three.js does) and moved to pos. Frames nest."""
+    start = len(OBJS)
+    yield
+    m = Matrix.Translation(Vector(pos)) @ Matrix.Rotation(rx, 4, 'X') @ Matrix.Rotation(ry, 4, 'Y') @ Matrix.Rotation(rz, 4, 'Z') @ Matrix.Scale(s, 4)
+    mb = _THREE_TO_BLENDER @ m @ _THREE_TO_BLENDER.inverted()
+    for ob in OBJS[start:]:
+        ob.data.transform(mb)
 
 def box(x0, x1, y0, y1, z0, z1, m, bevel=0.0, seg=1):
     x0, x1 = min(x0, x1), max(x0, x1)
@@ -164,6 +182,87 @@ def slab(poly, thick, m, toward=None):
     if toward is not None and n.dot(Vector(toward) - P[0]) < 0:
         n = -n
     return prism([tuple(p) for p in P], tuple(n * thick), m)
+
+def slab2d(pts, a0, a1, m, plane='xy', bevel=0.0, segs=2):
+    """A closed outline of 2D points made solid: in plane 'xy' it is extruded along z from a0 to a1, in 'xz'
+    (points are x, z) along y, and in 'zy' (points are z, y) along x. bevel rounds the edges round both faces."""
+    bm = bmesh.new()
+    P = {'xy': lambda u, v, w: V(u, v, w), 'xz': lambda u, v, w: V(u, w, v), 'zy': lambda u, v, w: V(w, v, u)}[plane]
+    lo = [bm.verts.new(P(u, v, a0)) for u, v in pts]
+    hi = [bm.verts.new(P(u, v, a1)) for u, v in pts]
+    bm.faces.new(lo)
+    bm.faces.new(list(reversed(hi)))
+    for i in range(len(pts)):
+        j = (i + 1) % len(pts)
+        bm.faces.new((lo[i], lo[j], hi[j], hi[i]))
+    bmesh.ops.recalc_face_normals(bm, faces=bm.faces)
+    if bevel:
+        ends = set(lo), set(hi)
+        caps = [e for e in bm.edges if any(e.verts[0] in s and e.verts[1] in s for s in ends)]
+        bmesh.ops.bevel(bm, geom=caps, offset=bevel, segments=segs, affect='EDGES', profile=0.5, clamp_overlap=True)
+    return finish(bm, m, 'slab')
+
+def rod(p0, p1, r0, m, r1=None, seg=8):
+    """A cylinder (or tapered rod) from p0 to p1."""
+    a, b = Vector(p0), Vector(p1)
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=seg, radius1=r0, radius2=r0 if r1 is None else r1, depth=(b - a).length)
+    q = Vector((0, 0, 1)).rotation_difference(V(*(b - a)).normalized())
+    bmesh.ops.rotate(bm, verts=bm.verts, cent=Vector(), matrix=q.to_matrix())
+    bmesh.ops.translate(bm, verts=bm.verts, vec=V(*((a + b) / 2)))
+    return finish(bm, m, 'rod')
+
+def torus(R, r, m, seg=18, ring=6):
+    """A ring in the x-y plane round the z axis."""
+    bm = bmesh.new()
+    rows = [[bm.verts.new(V((R + r * math.cos(b)) * math.cos(a), (R + r * math.cos(b)) * math.sin(a), r * math.sin(b)))
+             for b in (math.tau * j / ring for j in range(ring))] for a in (math.tau * i / seg for i in range(seg))]
+    for i in range(seg):
+        r0, r1 = rows[i], rows[(i + 1) % seg]
+        for j in range(ring):
+            k = (j + 1) % ring
+            bm.faces.new((r0[j], r1[j], r1[k], r0[k]))
+    return finish(bm, m, 'torus')
+
+def dome(c, rx, ry, rz, m, seg=10, rings=4):
+    """Half an ellipsoid sitting on y = c[1]: a grave's mound."""
+    bm = bmesh.new()
+    top = bm.verts.new(V(c[0], c[1] + ry, c[2]))
+    rows = []
+    for k in range(1, rings + 1):
+        th = math.pi / 2 * k / rings
+        rows.append([bm.verts.new(V(c[0] + rx * math.sin(th) * math.cos(f), c[1] + ry * math.cos(th), c[2] + rz * math.sin(th) * math.sin(f)))
+                     for f in (math.tau * j / seg for j in range(seg))])
+    for j in range(seg):
+        bm.faces.new((top, rows[0][(j + 1) % seg], rows[0][j]))
+    for a, b in zip(rows, rows[1:]):
+        for j in range(seg):
+            bm.faces.new((a[j], a[(j + 1) % seg], b[(j + 1) % seg], b[j]))
+    bm.faces.new(list(reversed(rows[-1])))
+    return finish(bm, m, 'dome')
+
+def fence(x0, z0, x1, z1, y0, h, m, gap=0.22, posts=2.4):
+    """Wrought-iron railing along an axis-aligned run: posts with ball caps, two rails, spear-topped bars."""
+    L = math.hypot(x1 - x0, z1 - z0)
+    ux, uz = (x1 - x0) / L, (z1 - z0) / L
+    at = lambda t: (x0 + ux * t, z0 + uz * t)
+    for yy in (y0 + 0.1, y0 + h - 0.2):
+        a, b = at(0), at(L)
+        box(min(a[0], b[0]) - 0.02, max(a[0], b[0]) + 0.02, yy, yy + 0.04, min(a[1], b[1]) - 0.02, max(a[1], b[1]) + 0.02, m)
+    npost = max(1, round(L / posts))
+    tposts = [L * i / npost for i in range(npost + 1)]
+    for t in tposts:
+        x, z = at(t)
+        box(x - 0.045, x + 0.045, y0, y0 + h + 0.02, z - 0.045, z + 0.045, m)
+        sphere(0.065, x, y0 + h + 0.08, z, m, seg=6)
+    n = max(1, round(L / gap))
+    for i in range(1, n):
+        t = L * i / n
+        if min(abs(t - p) for p in tposts) < 0.08:
+            continue
+        x, z = at(t)
+        box(x - 0.01, x + 0.01, y0 + 0.02, y0 + h - 0.1, z - 0.01, z + 0.01, m)
+        cyl(0.03, 0.0, 0.12, x, y0 + h - 0.1, z, m, seg=4, rot=math.pi / 4)
 
 def empty(name, x, y, z, **props):
     ob = bpy.data.objects.new(name, None)
@@ -235,8 +334,11 @@ def blocker(ob, keep_material=False, only=None):
     HELP.append(ob)
     return ob
 
+LIGHT_SPECS = []
 def light(name, kind, xyz, color, power, size=0.1, size_y=None, aim=None, group='warm', shadow=True, angle=None):
     """aim: the direction (three coords) the light shines along, for suns and area lights."""
+    LIGHT_SPECS.append(dict(name=name, kind=kind, xyz=list(xyz), color=list(color), power=power, size=size, size_y=size_y,
+                            aim=list(aim) if aim is not None else None, group=group, shadow=shadow, angle=angle))
     ld = bpy.data.lights.new(name, kind)
     ld.color = color
     ld.energy = power
@@ -258,6 +360,38 @@ def light(name, kind, xyz, color, power, size=0.1, size_y=None, aim=None, group=
     ob['group'] = group
     LIGHTS.append(ob)
     return ob
+
+def save_lights(path, world):
+    """Write every light made so far, and the sky's colours, so another set can be lit exactly the same way."""
+    with open(path, 'w') as f:
+        json.dump(dict(world=[list(c) for c in world], lights=LIGHT_SPECS), f, indent=1)
+
+def load_lights(path):
+    """Recreate the lights saved by save_lights(); returns the sky's (top, bottom) colours."""
+    with open(path) as f:
+        d = json.load(f)
+    for spec in d['lights']:
+        light(**spec)
+    return [tuple(c) for c in d['world']]
+
+def scenery(path, keep=None):
+    """Load another set's glb as bake-only scenery that keeps its materials (for its shadows and bounce)."""
+    before = set(bpy.data.objects)
+    bpy.ops.import_scene.gltf(filepath=path)
+    obs = [o for o in bpy.data.objects if o not in before]
+    for ob in obs:                                 # world-space vertices, as the buried-face test expects
+        if ob.type == 'MESH':
+            ob.data.transform(ob.matrix_world)
+    for ob in obs:
+        if ob.type == 'MESH':
+            ob.parent = None
+            ob.matrix_world = Matrix.Identity(4)
+    for ob in obs:
+        if ob.type == 'MESH' and (keep is None or keep(ob.name)):
+            HELP.append(ob)
+        else:
+            bpy.data.objects.remove(ob, do_unlink=True)
+    return [o for o in HELP if o in obs]
 
 def sky(top, bottom, strength=1.0):
     """A world that is `top` overhead and `bottom` underfoot, blended by height (the site's hemisphere light)."""
@@ -293,6 +427,31 @@ def dark_world():
     return world
 
 # ------------------------------------------------------------------ join, lightmap UVs, bake, split, export
+def split_group(obj, gi, name):
+    """Move the faces of export group gi out of obj into a new object called name; False if it has none."""
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
+    bpy.ops.object.mode_set(mode='EDIT')
+    bpy.ops.mesh.select_all(action='DESELECT')
+    bm = bmesh.from_edit_mesh(obj.data)
+    gl = bm.faces.layers.int['grp']
+    any_face = False
+    for f in bm.faces:
+        sel = f[gl] == gi
+        f.select_set(sel)
+        any_face |= sel
+    bm.select_flush_mode()
+    bmesh.update_edit_mesh(obj.data)
+    if any_face:
+        bpy.ops.mesh.separate(type='SELECTED')
+    bpy.ops.object.mode_set(mode='OBJECT')
+    if any_face:
+        new = [o for o in bpy.context.selected_objects if o != obj][0]
+        new.name = new.data.name = name
+        new.select_set(False)
+    return any_face
+
 def build(name, prefix, out, size, cool_size, samples, hidden=None, cool_world=None, ambient=None, extra=None):
     """Join every part, drop faces nobody can see, unwrap, bake the 'warm' and 'cool' light groups, split
     the export groups into objects named prefix_group and write <name>.glb, <name>_warm.png,
@@ -335,6 +494,11 @@ def build(name, prefix, out, size, cool_size, samples, hidden=None, cool_world=N
         vs = vs[::max(1, len(vs) // 8)]
         pts = [c] + [v.co + (c - v.co).normalized() * min(0.01, (c - v.co).length * 0.5) for v in vs]
         pts += [(a.co + b.co) / 2 for a, b in zip(vs, vs[1:] + vs[:1])]
+        if f.calc_area() > 0.05:                   # and across a big face, which bands or mouldings can cover only in part
+            co = [l.vert.co for l in f.loops]
+            for k in range(1, len(co) - 1):
+                a, b, d = co[0], co[k], co[k + 1]
+                pts += [a + (b - a) * u + (d - a) * v for u, v in ((0.2, 0.2), (0.6, 0.2), (0.2, 0.6), (0.33, 0.33), (0.1, 0.45), (0.45, 0.1))]
         if all(inside(p + n * 0.003) for p in pts):
             dead.add(f)
     buried = len(dead)
@@ -354,6 +518,14 @@ def build(name, prefix, out, size, cool_size, samples, hidden=None, cool_world=N
     me.uv_layers.new(name='LM')
     tris = sum(len(p.vertices) - 2 for p in me.polygons)
     log(f'joined: {len(me.polygons)} faces ({tris} triangles), {len(me.materials)} materials')
+    for gname in [g for g in GROUPS if g in LIT]:      # lit groups leave before unwrapping and aren't baked
+        if split_group(obj, GROUPS.index(gname), f'{prefix}_{gname}'):
+            new = bpy.data.objects[f'{prefix}_{gname}']
+            while new.data.uv_layers:
+                new.data.uv_layers.remove(new.data.uv_layers[0])
+    bpy.ops.object.select_all(action='DESELECT')
+    obj.select_set(True)
+    bpy.context.view_layer.objects.active = obj
 
     bpy.ops.object.mode_set(mode='EDIT')
     bpy.context.tool_settings.mesh_select_mode = (False, False, True)
@@ -453,26 +625,8 @@ def build(name, prefix, out, size, cool_size, samples, hidden=None, cool_world=N
     obj.select_set(True)
     bpy.context.view_layer.objects.active = obj
     for gi, gname in enumerate(GROUPS):
-        if gi == 0:
-            continue
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bm = bmesh.from_edit_mesh(obj.data)
-        gl = bm.faces.layers.int['grp']
-        any_face = False
-        for f in bm.faces:
-            sel = f[gl] == gi
-            f.select_set(sel)
-            any_face |= sel
-        bm.select_flush_mode()
-        bmesh.update_edit_mesh(obj.data)
-        if any_face:
-            bpy.ops.mesh.separate(type='SELECTED')
-        bpy.ops.object.mode_set(mode='OBJECT')
-        if any_face:
-            new = [o for o in bpy.context.selected_objects if o != obj][0]
-            new.name = new.data.name = f'{prefix}_{gname}'
-            new.select_set(False)
+        if gi and gname not in LIT:
+            split_group(obj, gi, f'{prefix}_{gname}')
     obj.name = obj.data.name = f'{prefix}_{GROUPS[0]}'
     if not obj.data.polygons:
         bpy.data.objects.remove(obj, do_unlink=True)
@@ -487,7 +641,7 @@ def build(name, prefix, out, size, cool_size, samples, hidden=None, cool_world=N
         export_draco_position_quantization=14, export_draco_normal_quantization=8, export_draco_texcoord_quantization=12,
         export_extras=True, export_cameras=False, export_lights=False,
     )
-    meta = dict(triangles=tris, groups=GROUPS, materials=sorted(m.name for m in me.materials), samples=samples,
+    meta = dict(triangles=tris, groups=GROUPS, lit=sorted(LIT), materials=sorted(m.name for m in me.materials), samples=samples,
                 warm=stats['warm'], cool=stats['cool'], seconds=round(time.time() - T0, 1), **(extra or {}))
     with open(os.path.join(out, f'{name}.json'), 'w') as f:
         json.dump(meta, f, indent=1)

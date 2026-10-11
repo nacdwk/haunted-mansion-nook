@@ -424,11 +424,14 @@ export function deadTree(parent, x, y, z, { h = 6, r = 0.35, seed = 1, m = MAT.b
   for (let i = 0; i < 5; i++) { const a = i / 5 * TAU + rnd(); const rt = new THREE.Mesh(new THREE.ConeGeometry(r * 0.6, r * 3, 5), m); rt.position.set(Math.cos(a) * r * 0.9, r * 0.4, Math.sin(a) * r * 0.9); rt.rotation.set(Math.sin(a) * 1.2, 0, -Math.cos(a) * 1.2); g.add(rt); }
   return g;
 }
-export function tombstone(parent, x, y, z, ry = 0, { kind = 0, s = 1, m = MAT.tomb, face = null } = {}) {
-  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.rotation.z = rand(-0.06, 0.06); g.scale.setScalar(s); parent.add(g);
+// faceOnly: just the epitaph, for a baked stone that sits in the same place (blender/grounds.py)
+export function tombstone(parent, x, y, z, ry = 0, { kind = 0, s = 1, m = MAT.tomb, face = null, tilt = null, faceOnly = false } = {}) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.rotation.z = tilt ?? rand(-0.06, 0.06); g.scale.setScalar(s); parent.add(g);
   if (kind === 0) { // rounded top
-    boxA(-0.4, 0.4, 0, 0.8, -0.1, 0.1, m, g);
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.2, 12, 1, false, -Math.PI / 2, Math.PI), m); top.rotation.x = Math.PI / 2; top.rotation.z = Math.PI / 2; top.position.y = 0.8; g.add(top);
+    if (!faceOnly) {
+      boxA(-0.4, 0.4, 0, 0.8, -0.1, 0.1, m, g);
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.2, 12, 1, false, -Math.PI / 2, Math.PI), m); top.rotation.x = Math.PI / 2; top.rotation.z = Math.PI / 2; top.position.y = 0.8; g.add(top);
+    }
     if (face) { const f = mesh(new THREE.PlaneGeometry(0.72, 0.9), new THREE.MeshStandardMaterial({ map: face, roughness: 0.9 }), 0, 0.62, 0.101, g); }
   } else if (kind === 1) { // cross
     boxA(-0.08, 0.08, 0, 1.3, -0.08, 0.08, m, g);
@@ -438,12 +441,15 @@ export function tombstone(parent, x, y, z, ry = 0, { kind = 0, s = 1, m = MAT.to
     const ob = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.2, 1.6, 4), m); ob.rotation.y = Math.PI / 4; ob.position.y = 1.1; g.add(ob);
     const tip = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.25, 4), m); tip.rotation.y = Math.PI / 4; tip.position.y = 2.02; g.add(tip);
   } else { // slab with a pointed gothic top
-    boxA(-0.34, 0.34, 0, 0.9, -0.09, 0.09, m, g);
-    const sh = new THREE.Shape(); sh.moveTo(-0.34, 0); sh.quadraticCurveTo(-0.3, 0.32, 0, 0.5); sh.quadraticCurveTo(0.3, 0.32, 0.34, 0); sh.closePath();
-    const eg = new THREE.ExtrudeGeometry(sh, { depth: 0.18, bevelEnabled: false }); eg.translate(0, 0.9, -0.09);
-    g.add(new THREE.Mesh(eg, m));
+    if (!faceOnly) {
+      boxA(-0.34, 0.34, 0, 0.9, -0.09, 0.09, m, g);
+      const sh = new THREE.Shape(); sh.moveTo(-0.34, 0); sh.quadraticCurveTo(-0.3, 0.32, 0, 0.5); sh.quadraticCurveTo(0.3, 0.32, 0.34, 0); sh.closePath();
+      const eg = new THREE.ExtrudeGeometry(sh, { depth: 0.18, bevelEnabled: false }); eg.translate(0, 0.9, -0.09);
+      g.add(new THREE.Mesh(eg, m));
+    }
     if (face) { const f = mesh(new THREE.PlaneGeometry(0.6, 0.75), new THREE.MeshStandardMaterial({ map: face, roughness: 0.9 }), 0, 0.55, 0.091, g); }
   }
+  if (faceOnly) return g;
   // dirt mound
   const mound = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 5, 0, TAU, 0, Math.PI / 2), mat('#2c2420', 1, 0, { flat: true })); mound.scale.set(0.9, 0.18, 1.6); mound.position.set(0, 0, 0.75); g.add(mound);
   return g;

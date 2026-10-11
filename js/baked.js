@@ -1,5 +1,5 @@
-// Sets modelled in Blender and lit with Cycles: the Grand Hall (blender/grand_hall.py) and the mansion's
-// exterior (blender/exterior.py). Each set's light is baked into two lightmaps, warm and cool. Keeping them
+// Sets modelled in Blender and lit with Cycles: the Grand Hall (blender/grand_hall.py), the mansion's exterior
+// (blender/exterior.py) and the grounds round it (blender/grounds.py). Each set's light is baked into two lightmaps, warm and cool. Keeping them
 // apart lets the set still dim for the lantern, brighten on hover, flicker and flash with lightning. Surfaces
 // are otherwise unlit, apart from the lantern, glints of the flames in polished surfaces and a cheap fake
 // reflection on metals, so they cost less to draw than the procedural sets they replace.
@@ -7,7 +7,7 @@
 import { THREE, W, onUpdate, noise1, NOISE_GLSL, glow } from './core.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
-import { T } from './materials.js';
+import { T, MAT } from './materials.js';
 import * as P from './props.js';
 
 const DIR = './assets/';
@@ -70,7 +70,14 @@ const EXTERIOR_LOOK = {
   brick: { map: 'brick', uv: 2.2 }, stone: { map: 'stoneWarm', uv: 3.5 }, stone_dark: { map: 'stoneDark', uv: 3.5 },
   shingle: { map: 'shingle', uv: 2.2 }, shingle_dark: { map: 'shingleDark', uv: 2.0 }, wood_dark: { map: 'woodDark', uv: 5 },
   iron: { color: '#17131d', metal: 0.5 }, gold: { color: '#c9a24a', metal: 1 }, door: { color: '#4a1e14', gloss: 0.2 },
-  bark: { color: '#4a3a40' },   // lighter than the site's bark, which gets most of its brightness from its sheen
+};
+// the site's dark matt materials get much of their brightness from their sheen; the baked ones, being matt, are lighter
+const GROUNDS_LOOK = {
+  stone_warm: { map: 'stoneWarm', uv: 3.5 }, stone: { map: 'stone', uv: 4 }, stone_dark: { map: 'stoneDark', uv: 3.5 }, flags: { map: 'flags', uv: 3 },
+  tomb: { color: '#888395' }, tomb_dark: { color: '#655f73' }, dirt: { color: '#362e28' }, wood_dark: { map: 'woodDark', uv: 5 },
+  bark: { color: '#4a3a40' }, bark_light: { color: '#5e4f5b' }, moss: { color: '#66745c' }, foliage: { color: '#384c43' }, foliage_dark: { color: '#33433e' },
+  gold: { color: '#c9a24a', metal: 1 }, black: { color: '#26212c', gloss: 0.3 }, plume: { color: '#221c27' }, walnut: { color: '#2a170d', gloss: 0.2 },
+  mahogany: { color: '#4a1e14', gloss: 0.25 }, velvet: { color: '#5e1426' }, cloth: { color: '#a99fb8' }, void: { color: '#050308' },
 };
 // the Grand Hall's brightest flames, which polished surfaces pick up as glints: position and strength
 const HALL_GLINTS = [[-5.0, 12.5, 1.6, 7], [-10.3, 7.9, -4.1, 5], [-6.4, 9.1, -0.45, 2.2], [-2.8, 9.1, -0.45, 2.2],
@@ -187,9 +194,15 @@ function sharedUniforms(set, { hot, hotCol, envLow, envHigh, glints = [] }) {
 
 // Put each of a set's objects where `place(name)` says: { parent } or { dissolver: name } (it then melts and
 // hides with that facade), and whether it casts shadows into the moon's shadow map.
+// place(name) says where each of the set's objects goes: { parent } or { dissolver } (a facade it melts with), cast
+// for shadows, and world when the parent has moved (the hearse) so the object keeps its baked position. The set's
+// lit groups (meta.lit: thin ironwork) skip the lightmap and use the site's own lit materials.
+const camel = (n) => n.replace(/_(\w)/g, (_, c) => c.toUpperCase());
 function attach(set, shared, looks, place) {
   if (!WHITE) { WHITE = new THREE.DataTexture(new Uint8Array([255, 255, 255, 255]), 1, 1); WHITE.needsUpdate = true; }
   const cache = new Map();
+  const lit = set.meta.lit || [];
+  const litMaterial = (name) => MAT[camel(name)] || new THREE.MeshStandardMaterial({ color: looks[name]?.color || '#808080', roughness: 0.6 });
   const material = (name, wall, dis) => {
     const key = `${name}|${wall}`;
     if (cache.has(key)) return cache.get(key);
@@ -213,14 +226,18 @@ function attach(set, shared, looks, place) {
     if (!where) continue;
     const d = where.dissolver ? W.dissolvers.find((x) => x.name === where.dissolver) : null;
     const dis = d ? { uDissolve: d.u.uDissolve, uEdge: d.u.uEdge } : NO_DISSOLVE;
+    const live = lit.some((g) => node.name.endsWith(`_${g}`));
     node.traverse((o) => {
       if (!o.isMesh) return;
+      if (live) { o.material = litMaterial(o.material.name); o.castShadow = !!where.cast; o.receiveShadow = true; return; }
       o.material = material(o.material.name, d ? d.name : '', dis);
       o.castShadow = !!where.cast; o.receiveShadow = false;
       if (d && where.cast) { o.userData.cast = true; d.meshes.push(o); }   // the facade turns its shadow off as it melts
     });
     node.userData.noCompact = true;
-    (d ? d.group : where.parent).add(node);
+    const parent = where.parent || d.group;
+    if (where.world) { parent.updateWorldMatrix(true, false); node.applyMatrix4(parent.matrixWorld.clone().invert()); }
+    parent.add(node);
   }
 }
 
@@ -270,7 +287,11 @@ export function addBakedExterior(root) {
     if (!name.startsWith('Ext_')) return null;
     const part = name.slice(4);
     if (part === 'roof') return { parent: W.roof.roof, cast: true };
-    if (part === 'porch' || part === 'tree') return { parent: G, cast: true };
+    if (part === 'porch' || part === 'tower-base') return { parent: G, cast: true };
+    // the tower: its upper half rises as the Stretching Room stretches, and each wall stretches and melts with its facet
+    if (part === 'tower-upper' || part === 'tower-iron') return { parent: W.tower.upper, cast: true, world: true };
+    const facet = part.match(/^tower(\d)$/);
+    if (facet) return { dissolver: part, parent: W.tower.facets[+facet[1]].stretchG, cast: true, world: true };
     return { dissolver: part, cast: true };
   });
   const candle = W.lights.find((e) => e.light.isPointLight && e.light.position.x > 40);
@@ -281,5 +302,30 @@ export function addBakedExterior(root) {
     shared.uCoolK.value.setScalar(X.meta.cool.scale * EXT_KC * (moon.intensity / moonBase + W.U.uFlash.value * 1.5));
   });
   W.bakedExteriorGroup = G;
+  return G;
+}
+
+// ---------------------------------------------------------------- the grounds
+export function addBakedGrounds(root) {
+  const X = W.bakedGrounds;
+  const shared = sharedUniforms(X, { hot: [48, 18.5, -1], hotCol: [2.2, 1.3, 0.55], envLow: [0.02, 0.02, 0.04], envHigh: [0.22, 0.2, 0.4] });
+  const G = new THREE.Group(); G.name = 'bakedGrounds'; G.userData.noCompact = true;
+  root.add(G);
+  const hearse = W.hearseBody;
+  attach(X, shared, GROUNDS_LOOK, (name) => {
+    if (!name.startsWith('Grd_')) return null;
+    if (name.startsWith('Grd_hearse')) return hearse ? { parent: hearse, cast: true, world: true } : null;
+    return { parent: G, cast: true };
+  });
+  const hs = hearse?.userData.hotspot;                // the baked hearse is clickable like the one it replaces
+  if (hs) hearse.traverse((o) => { o.userData.hotspot = hs; });
+  const candle = W.lights.find((e) => e.light.isPointLight && e.light.position.x > 40);
+  onUpdate(() => {
+    const warm = candle ? candle.light.intensity / candle.base : W.lightMul;
+    const { moon, moonBase } = W.sky;
+    shared.uWarmK.value.setScalar(X.meta.warm.scale * EXT_KW * warm);
+    shared.uCoolK.value.setScalar(X.meta.cool.scale * EXT_KC * (moon.intensity / moonBase + W.U.uFlash.value * 1.5));
+  });
+  W.bakedGroundsGroup = G;
   return G;
 }

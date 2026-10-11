@@ -671,9 +671,11 @@ export function buildTower(root) {
   const apo = R * Math.cos(Math.PI / 8);
   const side = 2 * R * Math.sin(Math.PI / 8) + 0.08;
   const th = 0.32;
+  // the baked exterior (blender/exterior.py) brings the tower's stonework; its windows and the room inside stay here
+  const BK = !!W.bakedExterior;
   // foundation
   const S = new THREE.Group();
-  const f = cyl(R + 0.25, R + 0.35, D.F1, MAT.stoneWarm, 0, D.F1 / 2, 0, S, 8); f.rotation.y = Math.PI / 8;
+  if (!BK) { const f = cyl(R + 0.25, R + 0.35, D.F1, MAT.stoneWarm, 0, D.F1 / 2, 0, S, 8); f.rotation.y = Math.PI / 8; }
   const fl = cyl(R - 0.1, R - 0.1, 0.05, MAT.woodDark, 0, D.F1 + 0.02, 0, S, 8); fl.rotation.y = Math.PI / 8;
   bake(S, TG);
   // rug in the stretching room
@@ -692,13 +694,13 @@ export function buildTower(root) {
     const stretchG = new THREE.Group(); stretchG.position.y = D.F1; fg.add(stretchG);
     const SS = new THREE.Group();
     if (i !== 2) { // facet 2 (normal +x) is buried against the house
-      boxA(-side / 2, side / 2, 0, H0, apo - 0.14, apo, MAT.stoneWarm, SS);
+      if (!BK) boxA(-side / 2, side / 2, 0, H0, apo - 0.14, apo, MAT.stoneWarm, SS);
       boxA(-side / 2 + 0.05, side / 2 - 0.05, 0, H0, apo - th, apo - 0.14, MAT.papTower, SS);
       boxA(-side / 2 + 0.05, side / 2 - 0.05, 0, 1.6, apo - th - 0.04, apo - th + 0.01, MAT.wainscotDark, SS);
       boxA(-side / 2 + 0.05, side / 2 - 0.05, 1.6, 1.72, apo - th - 0.08, apo - th, MAT.gold, SS);
       boxA(-side / 2 + 0.05, side / 2 - 0.05, H0 - 0.3, H0, apo - th - 0.12, apo - th, MAT.gold, SS);
       // pilaster at the corner
-      boxA(side / 2 - 0.2, side / 2 + 0.05, 0, H0, apo - 0.02, apo + 0.12, MAT.stoneDark, SS);
+      if (!BK) boxA(side / 2 - 0.2, side / 2 + 0.05, 0, H0, apo - 0.02, apo + 0.12, MAT.stoneDark, SS);
     }
     bake(SS, stretchG);
     // stretching portrait
@@ -731,18 +733,20 @@ export function buildTower(root) {
   const y0 = D.F2;
   const ceil = cyl(R - 0.15, R - 0.15, 0.3, MAT.woodDark, 0, y0 + 0.0, 0, U, 8); ceil.rotation.y = Math.PI / 8;
   const trap = cyl(0.7, 0.7, 0.05, MAT.void, 0, y0 - 0.17, 0, U, 16);
-  const body = cyl(R, R, 13.1, MAT.stoneWarm, 0, y0 + 0.15 + 6.55, 0, U, 8); body.rotation.y = Math.PI / 8;
-  for (const yy of [y0 + 0.15, y0 + 6.6, y0 + 13.1]) { const band = cyl(R + 0.18, R + 0.18, 0.4, MAT.stoneDark, 0, yy, 0, U, 8); band.rotation.y = Math.PI / 8; }
+  if (!BK) {
+    const body = cyl(R, R, 13.1, MAT.stoneWarm, 0, y0 + 0.15 + 6.55, 0, U, 8); body.rotation.y = Math.PI / 8;
+    for (const yy of [y0 + 0.15, y0 + 6.6, y0 + 13.1]) { const band = cyl(R + 0.18, R + 0.18, 0.4, MAT.stoneDark, 0, yy, 0, U, 8); band.rotation.y = Math.PI / 8; }
+  }
   for (let i = 0; i < 8; i++) {
     if (i === 2) continue;
     const a = i * Math.PI / 4;
     const wm = mesh(new THREE.PlaneGeometry(0.7, 2.0), MAT.windowArch, Math.sin(a) * (apo + 0.02), y0 + 3.4, Math.cos(a) * (apo + 0.02), U); wm.rotation.y = a;
-    boxA(-0.5, 0.5, 0, 0.12, 0, 0.2, MAT.stoneDark, (() => { const gg = new THREE.Group(); gg.position.set(Math.sin(a) * apo, y0 + 2.3, Math.cos(a) * apo); gg.rotation.y = a; U.add(gg); return gg; })());
+    if (!BK) boxA(-0.5, 0.5, 0, 0.12, 0, 0.2, MAT.stoneDark, (() => { const gg = new THREE.Group(); gg.position.set(Math.sin(a) * apo, y0 + 2.3, Math.cos(a) * apo); gg.rotation.y = a; U.add(gg); return gg; })());
     if (i % 2 === 0) { const rw = mesh(new THREE.CircleGeometry(0.42, 16), MAT.windowGlow, Math.sin(a) * (apo + 0.02), y0 + 9.3, Math.cos(a) * (apo + 0.02), U); rw.rotation.y = a; }
   }
   // balcony ring
-  const ring = cyl(R + 0.9, R + 0.9, 0.25, MAT.stoneDark, 0, y0 + 6.7, 0, U, 8); ring.rotation.y = Math.PI / 8;
-  for (let i = 0; i < 8; i++) {
+  if (!BK) { const ring = cyl(R + 0.9, R + 0.9, 0.25, MAT.stoneDark, 0, y0 + 6.7, 0, U, 8); ring.rotation.y = Math.PI / 8; }
+  if (!BK) for (let i = 0; i < 8; i++) {
     const a = i * Math.PI / 4 + Math.PI / 8;
     const rr2 = (R + 0.85) * Math.cos(Math.PI / 8);
     const len = 2 * (R + 0.85) * Math.sin(Math.PI / 8);
@@ -752,17 +756,19 @@ export function buildTower(root) {
   }
   // spire
   const sp0 = y0 + 13.3;
-  const eave = cyl(R + 0.55, R + 0.3, 0.35, MAT.trim, 0, sp0, 0, U, 8); eave.rotation.y = Math.PI / 8;
-  const spire = new THREE.LatheGeometry([[R + 0.55, 0], [R * 0.82, 1.4], [R * 0.45, 4.2], [0.2, 7.6], [0.0, 8.2]].map(([r, h]) => new THREE.Vector2(r, h)), 8);
-  const spm = mesh(spire, MAT.shingle, 0, sp0 + 0.15, 0, U); spm.rotation.y = Math.PI / 8;
-  cyl(0.05, 0.05, 2.0, MAT.iron, 0, sp0 + 9.1, 0, U, 6);
-  sphere(0.18, MAT.gold, 0, sp0 + 8.5, 0, U, 10, 8);
+  if (!BK) {
+    const eave = cyl(R + 0.55, R + 0.3, 0.35, MAT.trim, 0, sp0, 0, U, 8); eave.rotation.y = Math.PI / 8;
+    const spire = new THREE.LatheGeometry([[R + 0.55, 0], [R * 0.82, 1.4], [R * 0.45, 4.2], [0.2, 7.6], [0.0, 8.2]].map(([r, h]) => new THREE.Vector2(r, h)), 8);
+    const spm = mesh(spire, MAT.shingle, 0, sp0 + 0.15, 0, U); spm.rotation.y = Math.PI / 8;
+    cyl(0.05, 0.05, 2.0, MAT.iron, 0, sp0 + 9.1, 0, U, 6);
+    sphere(0.18, MAT.gold, 0, sp0 + 8.5, 0, U, 10, 8);
+  }
   // tiny dormer windows on the spire
   for (const a of [Math.PI / 4, -Math.PI / 4 * 3]) {
     const dg = new THREE.Group(); dg.position.set(Math.sin(a) * 2.25, sp0 + 2.0, Math.cos(a) * 2.25); dg.rotation.y = a; U.add(dg);
-    boxA(-0.45, 0.45, 0, 1.1, -0.5, 0.15, MAT.stoneWarm, dg);
-    mesh(new THREE.PlaneGeometry(0.45, 0.7), MAT.windowGlow, 0, 0.5, 0.16, dg);
-    const r1 = new THREE.ConeGeometry(0.7, 0.8, 4, 1); const rc = mesh(r1, MAT.shingleDark, 0, 1.45, -0.1, dg); rc.rotation.y = Math.PI / 4;
+    if (!BK) boxA(-0.45, 0.45, 0, 1.1, -0.5, 0.15, MAT.stoneWarm, dg);
+    mesh(new THREE.PlaneGeometry(0.45, 0.7), MAT.windowGlow, 0, 0.5, BK ? 0.165 : 0.16, dg);
+    if (!BK) { const r1 = new THREE.ConeGeometry(0.7, 0.8, 4, 1); const rc = mesh(r1, MAT.shingleDark, 0, 1.45, -0.1, dg); rc.rotation.y = Math.PI / 4; }
   }
   bake(U, UP);
   // chandelier in the stretching room (hangs from the moving ceiling)
