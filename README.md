@@ -2,6 +2,8 @@
 
 An interactive 3D book-nook diorama of the Haunted Mansion ride, built entirely in the browser with three.js. The mansion sits on a bookshelf between giant leather books and a lit candle. The walls facing you melt away so you can see into every room, the residents react when you poke them, and a Doom Buggy will take you through the whole house in first person.
 
+**▶ Visit the nook: <https://nacdwk.github.io/haunted-mansion-nook/>**
+
 *An unofficial fan tribute. All artwork, music, sound and narration here are original and generated in code.*
 
 ![The open nook](docs/overview.jpg)
