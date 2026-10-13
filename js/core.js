@@ -398,12 +398,12 @@ export function updateDissolvers(dt) {
 }
 
 // ---------- ghosts ----------
-export function ghostMaterial({ color = 0x9ffcf0, opacity = 0.9, wobble = 1, hidden = false, eyes = true, eyeY = 1.42, side = THREE.FrontSide, blend = 'add' } = {}) {
+export function ghostMaterial({ color = 0x9ffcf0, opacity = 0.9, wobble = 1, hidden = false, eyes = true, eyeY = 1.42, eyeX = 0.105, mouth = true, side = THREE.FrontSide, blend = 'add' } = {}) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uTime: W.U.uTime, uLantern: W.U.uLantern, uLanternOn: W.U.uLanternOn, uFlash: W.U.uFlash,
       uColor: { value: new THREE.Color(color) }, uOpacity: { value: opacity }, uWobble: { value: wobble },
-      uHidden: { value: hidden ? 1 : 0 }, uEyes: { value: eyes ? 1 : 0 }, uEyeY: { value: eyeY },
+      uHidden: { value: hidden ? 1 : 0 }, uEyes: { value: eyes ? 1 : 0 }, uEyeY: { value: eyeY }, uEyeX: { value: eyeX }, uMouthOn: { value: mouth ? 1 : 0 },
       uSeed: { value: Math.random() * 20 }, uMouth: { value: 0 },
     },
     vertexShader: /* glsl */`
@@ -425,7 +425,7 @@ export function ghostMaterial({ color = 0x9ffcf0, opacity = 0.9, wobble = 1, hid
     fragmentShader: /* glsl */`
       uniform vec3 uColor; uniform float uOpacity; uniform float uTime; uniform float uSeed;
       uniform vec3 uLantern; uniform float uLanternOn; uniform float uHidden; uniform float uFlash;
-      uniform float uEyes; uniform float uEyeY; uniform float uMouth;
+      uniform float uEyes; uniform float uEyeY; uniform float uEyeX; uniform float uMouth; uniform float uMouthOn;
       varying vec3 vN; varying vec3 vV; varying vec3 vW; varying vec3 vL;
       void main(){
         vec3 n = normalize(vN);
@@ -438,10 +438,10 @@ export function ghostMaterial({ color = 0x9ffcf0, opacity = 0.9, wobble = 1, hid
         float a = uOpacity * (0.17 + 0.83 * fres) * mix(0.12, 1.0, hem) * wisp;
         if (uEyes > 0.5 && vL.z > 0.05) {
           vec2 q = vL.xy;
-          float de = min(length((q - vec2(-0.105, uEyeY)) * vec2(1.0, 0.72)), length((q - vec2(0.105, uEyeY)) * vec2(1.0, 0.72)));
+          float de = min(length((q - vec2(-uEyeX, uEyeY)) * vec2(1.0, 0.72)), length((q - vec2(uEyeX, uEyeY)) * vec2(1.0, 0.72)));
           float eye = 1.0 - smoothstep(0.040, 0.056, de);
           float dm = length((q - vec2(0.0, uEyeY - 0.15)) * vec2(0.95, 1.6 - uMouth * 0.9));
-          float mouth = 1.0 - smoothstep(0.045 + uMouth * 0.02, 0.06 + uMouth * 0.02, dm);
+          float mouth = uMouthOn * (1.0 - smoothstep(0.045 + uMouth * 0.02, 0.06 + uMouth * 0.02, dm));
           float hole = max(eye, mouth);
           col *= 1.0 - hole * 0.92;
           a *= 1.0 - hole * 0.55;

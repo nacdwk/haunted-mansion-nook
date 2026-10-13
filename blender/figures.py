@@ -13,7 +13,10 @@ Writes figures.glb with one object per moving part, each in the frame the site a
   Fig_bust-head (shared by every bust), Fig_bust-hair-<short|fringe|curls|bun|wavy>, Fig_bust-laurel,
   Fig_bust-hat-<top|bowler>, and Fig_bust-face, the shell the singing busts' painted faces are projected onto;
 - Fig_raven-body (the raven's group), Fig_raven-head (its pivot) and Fig_raven-wing-<l|r> (their pivots, which the
-  site rolls by 0.2 at rest).
+  site rolls by 0.2 at rest);
+- Fig_bony-hand (a hand peeking from the conservatory's coffin), Fig_leota-head, Fig_leota-hair and Fig_leota-face
+  (Madame Leota in the séance's crystal ball), and Fig_ghost-dog and Fig_ghost-dog-tail (the pet cemetery's ghost,
+  a bare shape for the site's ghost shader).
 """
 import os, sys, math
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -30,7 +33,9 @@ for name, col, rough in [('coat', '#4a3a2e', 0.9), ('trousers', '#2a2420', 0.9),
                          ('nose', '#c8907a', 0.6), ('hat', '#2a2018', 0.9), ('scarf', '#7a1a22', 0.9), ('gloves', '#3a3030', 0.8),
                          ('brows', '#8a8580', 0.9), ('eyes', '#120d12', 0.3), ('fur', '#4e463e', 0.95), ('dog_nose', '#15101a', 0.4),
                          ('marble', '#bdb5c4', 0.4), ('hat_black', '#16131a', 0.45), ('bust_face', '#ffffff', 0.6),
-                         ('raven', '#15121a', 0.42), ('beak', '#2a2530', 0.35), ('raven_eye', '#ff3030', 0.4)]:
+                         ('raven', '#15121a', 0.42), ('beak', '#2a2530', 0.35), ('raven_eye', '#ff3030', 0.4), ('bone', '#e9e3cf', 0.6),
+                         ('leota_skin', '#d8fff0', 0.6), ('leota_hair', '#2f6b55', 0.7), ('leota_band', '#1d4a3c', 0.5), ('leota_jewel', '#bfffe8', 0.3),
+                         ('leota_face', '#ffffff', 0.6), ('ghost', '#b8fff0', 0.5)]:
     MATS[name] = kit.mat(name, col, rough)
 MATS['raven'].node_tree.nodes['Principled BSDF'].inputs['Metallic'].default_value = 0.15   # a little sheen on the feathers
 
@@ -330,9 +335,10 @@ class Scalp:
     def __init__(self, h):
         self.bvh = BVHTree.FromObject(h, bpy.context.evaluated_depsgraph_get())
         self.c = Vector((0, 0.06, -0.03))
-    def at(self, th, ph):
+    def at(self, th, ph, outside=False):
+        """outside: cast in from beyond, to find the outer face of a shell such as hair."""
         d = Vector((math.sin(th) * math.sin(ph), math.cos(th), math.sin(th) * math.cos(ph)))
-        hit = self.bvh.ray_cast(V(*self.c), V(*d))
+        hit = self.bvh.ray_cast(V(*(self.c + d * 0.6)), V(*-d)) if outside else self.bvh.ray_cast(V(*self.c), V(*d))
         return (three(hit[0]), three(hit[1]).normalized()) if hit[0] else (None, None)
     def flow(self, th, ph):                             # the way hair falls from the crown
         p0, _ = self.at(th, ph)
@@ -553,6 +559,108 @@ for sd in (-1, 1):                                      # folded wings: coverts 
         wing.append(strap([to_wing(p, sd) for p in pts], [0.026, 0.028, 0.02, 0.004], 0.005, feather, lambda p, sd=sd: (sd, 0.55, 0), n=8, name='feather'))
     part('raven-wing-' + ('l' if sd < 0 else 'r'), wing)
 
+# ------------------------------------------------------------------ the bony hands that peek out of the conservatory's coffin
+# A right hand, palm down and reaching out along +z, the finger bones hooked over the coffin's rim (js/rooms.js mirrors
+# it for the left). Frame: the hand's group, at the rim.
+bone = MATS['bone']
+def bone_seg(a, b, r0, r1, name='bone'):
+    """A bone between two joints: knobbly ends and a slimmer shaft."""
+    a, b = Vector(a) * 1.2, Vector(b) * 1.2
+    return tube([a, a.lerp(b, 0.22), a.lerp(b, 0.5), b.lerp(a, 0.22), b], [r0, r0 * 0.62, r0 * 0.55, r1 * 0.62, r1], bone, n=8, name=name, subdiv=0)
+hand = []
+for sx in (-1, 1):                                       # forearm: radius and ulna, back under the lid
+    hand.append(bone_seg((sx * 0.02, 0.005, -0.08), (sx * 0.027, 0.012, -0.3), 0.014, 0.011, 'forearm'))
+for x, z in ((-0.026, -0.074), (-0.005, -0.077), (0.016, -0.074), (0.033, -0.068), (-0.03, -0.054), (-0.009, -0.056), (0.012, -0.055), (0.03, -0.05)):
+    hand.append(blob((x * 1.2, 0.004 * 1.2, z * 1.2), (0.012, 0.01, 0.011), bone, 'carpal', subdiv=0))
+for x, length, r in ((0.04, 0.075, 0.0062), (0.013, 0.085, 0.0066), (-0.016, 0.08, 0.0062), (-0.045, 0.062, 0.0056)):   # index to little finger
+    k = Vector((x, 0.0, 0.03))
+    p1 = k + Vector((x * 0.08, -0.004, 0.42 * length))
+    p2 = p1 + Vector((0, -0.22 * length, 0.22 * length))   # bent down over the rim
+    p3 = p2 + Vector((0, -0.2 * length, 0.05 * length))
+    hand.append(bone_seg((x * 0.55, 0.004, -0.048), k, r * 1.35, r * 1.75, 'metacarpal'))
+    hand += [bone_seg(k, p1, r * 1.6, r * 1.35, 'phalanx'), bone_seg(p1, p2, r * 1.35, r * 1.2, 'phalanx'), bone_seg(p2, p3, r * 1.15, r * 0.7, 'phalanx')]
+hand += [bone_seg((0.032, 0.0, -0.055), (0.058, -0.004, -0.015), 0.0085, 0.009, 'thumb'), bone_seg((0.058, -0.004, -0.015), (0.072, -0.008, 0.015), 0.009, 0.0075, 'thumb'),
+         bone_seg((0.072, -0.008, 0.015), (0.08, -0.02, 0.038), 0.0072, 0.0045, 'thumb')]
+part('bony-hand', hand)
+
+# ------------------------------------------------------------------ Madame Leota, in the séance's crystal ball
+# A head that glows from within. js/rooms.js draws it unlit, so its vertex colours carry a key light from the front as
+# well as the ambient occlusion. Her closed eyes, brows and speaking lips are painted (js/paint.js leotaFeatures) onto
+# Fig_leota-face. Frame: the head's centre, which js/rooms.js turns to face you.
+LEOTA_MB = [
+    (E, (0, 0.06, -0.03), (0.158, 0.172, 0.178)),            # cranium
+    (E, (0, 0.088, 0.058), (0.128, 0.108, 0.1)),              # forehead
+    (E, (0, -0.02, 0.055), (0.124, 0.138, 0.118)),            # face
+    (E, (0, -0.112, 0.05), (0.1, 0.078, 0.094)),              # jaw
+    (E, (0, -0.165, 0.112), (0.04, 0.034, 0.036)),            # chin
+    (B, (0.074, 0.0, 0.108), 0.04), (B, (-0.074, 0.0, 0.108), 0.04),          # cheekbones
+    (CAP, ((0.02, 0.068, 0.167), (0.09, 0.075, 0.14)), 0.014), (CAP, ((-0.02, 0.068, 0.167), (-0.09, 0.075, 0.14)), 0.014),   # brows
+    (CAP, ((0, 0.05, 0.172), (0, -0.024, 0.198)), 0.016),     # a fine nose
+    (B, (0, -0.032, 0.199), 0.018),
+    (B, (0.017, -0.044, 0.186), 0.011), (B, (-0.017, -0.044, 0.186), 0.011),
+    (E, (0, -0.087, 0.172), (0.032, 0.012, 0.016)),           # full lips
+    (E, (0, -0.111, 0.168), (0.028, 0.013, 0.017)),
+    (B, (0.056, 0.03, 0.148), 0.027, None, False, 2.6), (B, (-0.056, 0.03, 0.148), 0.027, None, False, 2.6),   # eyes, closed:
+    (CAP, ((0.035, 0.033, 0.171), (0.08, 0.033, 0.158)), 0.012, None, False, 2.6), (CAP, ((-0.035, 0.033, 0.171), (-0.08, 0.033, 0.158)), 0.012, None, False, 2.6),   # lids
+    (E, (0.058, 0.052, 0.163), (0.02, 0.007, 0.01), None, True, 0.9), (E, (-0.058, 0.052, 0.163), (0.02, 0.007, 0.01), None, True, 0.9),
+    (E, (0.163, 0.0, -0.005), (0.016, 0.045, 0.028)), (E, (-0.163, 0.0, -0.005), (0.016, 0.045, 0.028)),   # ears
+    (CAP, ((0, -0.11, -0.03), (0, -0.19, -0.035)), 0.064),     # a short neck, ending in the mist
+]
+leota = mball('MBleota', LEOTA_MB, 0.004, MATS['leota_skin'], 0.06, smooth=4)
+lscalp = Scalp(leota)
+els = []
+for th, ph in scalp_grid(12, 50, 108):                   # smooth hair, parted in the middle
+    p, n = lscalp.at(th, ph)
+    if p:
+        els.append((B, tuple(p - n * 0.006), 0.046, None, False, 0.9))
+p0, n0 = lscalp.at(math.radians(44), 0.0)
+p1, n1 = lscalp.at(math.radians(18), 0.0)
+els.append((CAP, (tuple(p0 + n0 * 0.035), tuple(p1 + n1 * 0.035)), 0.007, None, True, 2.0))
+for sd in (-1, 1):                                       # falling past her ears to the jaw, as in the ride
+    els.append((CAP, ((sd * 0.13, 0.11, 0.06), (sd * 0.165, -0.1, 0.01)), 0.04, None, False, 1.6))
+    els.append((CAP, ((sd * 0.165, -0.1, 0.01), (sd * 0.15, -0.16, -0.03)), 0.03, None, False, 1.6))
+bc, bn = lscalp.at(math.radians(100), math.pi)           # and a chignon
+els.append((B, tuple(bc + bn * 0.05), 0.065, None, False, 2.0))
+hair = mball('MBleotahair', els, 0.005, MATS['leota_hair'], 0.04)
+hscalp = Scalp(hair)
+def outer(th, ph):                                       # her hair, or her brow where there is none
+    p, n = hscalp.at(th, ph, outside=True)
+    return (p, n) if p else lscalp.at(th, ph)
+ring = []
+for k in range(37):                                      # a headband over the hair, low on the brow, with a jewel
+    ph = math.tau * k / 36
+    p, n = outer(math.radians(57 - 18 * (1 - math.cos(ph)) / 2), ph)
+    if p:
+        ring.append(tuple(p + n * 0.004))
+band = strap(ring, [0.014] * len(ring), 0.006, MATS['leota_band'], lambda p: (p.x, 0.0, p.z + 0.03), n=6, name='band', subdiv=0)
+front, fn = outer(math.radians(57), 0.0)
+jewel = [blob(tuple(front + fn * 0.012), (0.017, 0.019, 0.01), MATS['leota_jewel'], 'jewel'),
+         blob(tuple(front + fn * 0.006 + Vector((0, -0.036, 0.004))), (0.007, 0.012, 0.006), MATS['leota_jewel'], 'drop', subdiv=0)]
+earrings = [tube([(sd * 0.168 + sd * 0.02 * math.sin(a), -0.095 - 0.02 * (1 - math.cos(a)), 0.01 + 0.02 * math.sin(a) * 0.3) for a in (math.tau * j / 12 for j in range(13))],
+                 [0.004] * 13, MATS['leota_jewel'], n=6, name='earring', subdiv=0) for sd in (-1, 1)]
+part('leota-head', [leota])
+part('leota-hair', [hair, band] + jewel + earrings)
+
+# ------------------------------------------------------------------ the pet cemetery's ghost dog
+# Only a shape: the site draws it with the ghosts' glowing shader, which paints its eyes at (-/+0.07, 0.6) on whatever
+# faces forward there and fades it out toward its paws. Frame: the dog, facing +z; js/outside.js wags its tail round
+# (0, 0.4, -0.25), so the tail stays in the dog's frame too.
+DOG_MB = [
+    (E, (0, 0.33, -0.03), (0.12, 0.115, 0.22)),              # body
+    (E, (0, 0.345, 0.12), (0.115, 0.125, 0.1)),               # chest
+    (CAP, ((0, 0.4, 0.15), (0, 0.5, 0.22)), 0.075),          # neck
+    (E, (0, 0.585, 0.26), (0.12, 0.11, 0.115)),               # a big puppy head
+    (CAP, ((0, 0.545, 0.33), (0, 0.53, 0.42)), 0.05),        # muzzle
+    (B, (0, 0.54, 0.45), 0.026),                              # nose
+    (E, (0.135, 0.52, 0.2), (0.03, 0.095, 0.055), (0.15, 0, 0.35)), (E, (-0.135, 0.52, 0.2), (0.03, 0.095, 0.055), (0.15, 0, -0.35)),   # floppy ears
+    (CAP, ((0.07, 0.3, 0.13), (0.07, 0.03, 0.16)), 0.04), (CAP, ((-0.07, 0.3, 0.13), (-0.07, 0.03, 0.16)), 0.04),          # front legs
+    (B, (0.072, 0.31, -0.16), 0.07), (B, (-0.072, 0.31, -0.16), 0.07),                                                     # haunches
+    (CAP, ((0.075, 0.25, -0.17), (0.075, 0.03, -0.2)), 0.042), (CAP, ((-0.075, 0.25, -0.17), (-0.075, 0.03, -0.2)), 0.042),   # hind legs
+]
+part('ghost-dog', [mball('MBghostdog', DOG_MB, 0.006, MATS['ghost'], 0.04)])
+part('ghost-dog-tail', [mball('MBghosttail', [(CAP, ((0, 0.4, -0.24), (0, 0.47, -0.33)), 0.03), (CAP, ((0, 0.47, -0.33), (0, 0.58, -0.37)), 0.022)],
+                              0.005, MATS['ghost'], 0.1)])
+
 # ------------------------------------------------------------------ ambient occlusion into vertex colours, posed as on the site
 scene = bpy.context.scene
 scene.world = bpy.data.worlds.new('world')
@@ -611,42 +719,65 @@ for sd in (-1, 1):
     stand('raven-wing-' + ('l' if sd < 0 else 'r'), (14 + sd * 0.1, 0.26, 0), wing_rest(sd))
 for name in ('raven-body', 'raven-head', 'raven-wing-l', 'raven-wing-r'):
     bake_ao(PARTS[name], 0.04)
+stand('bony-hand', (18, 0.3, 0))
+bake_ao(PARTS['bony-hand'], 0.02)
+stand('leota-head', (20, 1, 0))
+stand('leota-hair', (20, 1, 0))
+key = Vector((0.35, 0.55, 1.0)).normalized()          # she glows from within, lit as if from the front
+for name in ('leota-head', 'leota-hair'):
+    ob = PARTS[name]
+    bake_ao(ob, 0.04)
+    for v, c in zip(ob.data.vertices, ob.data.color_attributes['AO'].data):
+        k = 0.5 + 0.5 * max(0.0, three(v.normal).dot(key))
+        c.color = (c.color[0] * k,) * 3 + (1.0,)
 for ob in PARTS.values():
     ob.location = (0, 0, 0)
     ob.rotation_euler = (0, 0, 0)
 for f in floors:
     bpy.data.objects.remove(f, do_unlink=True)
 
-# ------------------------------------------------------------------ the singing busts' faces
-# js/outside.js paints each bust's eyes and mouth (js/paint.js bustFaces) and swaps the frames as it sings. They are
-# projected onto a thin shell over the front of the head, laid on from straight ahead so the painted eyes land on the
-# carved ones: on the canvas the eyes are at u = 0.5 -/+ 0.156, 50 px down, and the mouth 92 px down. glTF stores v
-# top-down while the site's canvas textures are sampled bottom-up, so v is written flipped.
-face = PARTS['bust-head'].copy()
-face.data = PARTS['bust-head'].data.copy()
-scene.collection.objects.link(face)
-bm = bmesh.new()
-bm.from_mesh(face.data)
-bmesh.ops.delete(bm, geom=[f for f in bm.faces if not (abs(f.calc_center_median().x) < 0.125 and -0.205 < f.calc_center_median().z < 0.105
-                                                         and -f.calc_center_median().y > 0.1 and -f.normal.y > 0.25)], context='FACES')
-bm.normal_update()
-for v in bm.verts:
-    v.co += v.normal * 0.0015
-uv = bm.loops.layers.uv.new('UVMap')
-for f in bm.faces:
-    for loop in f.loops:
-        loop[uv].uv = (0.5 + loop.vert.co.x / 0.423, 1 - (0.609 + (loop.vert.co.z - 0.035) / 0.503))
-bm.to_mesh(face.data)
-bm.free()
-for a in list(face.data.color_attributes):
-    face.data.color_attributes.remove(a)
-face.data.materials.clear()
-face.data.materials.append(MATS['bust_face'])
-face.name = face.data.name = 'Fig_bust-face'
-PARTS['bust-face'] = face
-kit.log(f'bust-face: {len(face.data.polygons)} triangles')
-for ob in PARTS.values():                              # only the face needs texture coordinates
-    if ob is not face:
+# ------------------------------------------------------------------ painted faces
+# The singing busts' eyes and mouths (js/paint.js bustFaces) and Leota's closed eyes and lips (leotaFeatures) are
+# painted on canvases whose frames the site swaps as they sing or speak. They're projected onto a thin shell over the
+# front of the head, laid on from straight ahead so the paint lands on the carved features. glTF stores v top-down
+# while the site's canvas textures are sampled bottom-up, so v is written flipped.
+def face_shell(head, name, m, box, uv_at):
+    """A shell over the faces of head within box (x half-width, y range, nearest z) that face forward, lifted off a
+    little, with uv_at(x, y) as their texture coordinates (three coords)."""
+    face = PARTS[head].copy()
+    face.data = PARTS[head].data.copy()
+    scene.collection.objects.link(face)
+    bm = bmesh.new()
+    bm.from_mesh(face.data)
+    hw, (y0, y1), z0 = box
+    bmesh.ops.delete(bm, geom=[f for f in bm.faces if not (abs(f.calc_center_median().x) < hw and y0 < f.calc_center_median().z < y1
+                                                             and -f.calc_center_median().y > z0 and -f.normal.y > 0.25)], context='FACES')
+    bm.normal_update()
+    for v in bm.verts:
+        v.co += v.normal * 0.0015
+    uv = bm.loops.layers.uv.new('UVMap')
+    for f in bm.faces:
+        for loop in f.loops:
+            u, v = uv_at(loop.vert.co.x, loop.vert.co.z)
+            loop[uv].uv = (u, 1 - v)
+    bm.to_mesh(face.data)
+    bm.free()
+    for a in list(face.data.color_attributes):
+        face.data.color_attributes.remove(a)
+    face.data.materials.clear()
+    face.data.materials.append(m)
+    face.name = face.data.name = 'Fig_' + name
+    PARTS[name] = face
+    kit.log(f'{name}: {len(face.data.polygons)} triangles')
+    return face
+# the busts' canvas: eyes at u = 0.5 -/+ 0.156, 50 px down a 128 px canvas, the mouth 92 px down
+face_shell('bust-head', 'bust-face', MATS['bust_face'], (0.125, (-0.205, 0.105), 0.1), lambda x, y: (0.5 + x / 0.423, 0.609 + (y - 0.035) / 0.503))
+# Leota's covers half a metre square of her face, centred at (0, -0.02): her eyes 102 px down a 256 px canvas at
+# 128 -/+ 29 px, her lips 168 px down
+face_shell('leota-head', 'leota-face', MATS['leota_face'], (0.11, (-0.17, 0.11), 0.08), lambda x, y: (0.5 + x / 0.5, 0.5 + (y + 0.02) / 0.5))
+shells = (PARTS['bust-face'], PARTS['leota-face'])
+for ob in PARTS.values():                              # only the faces need texture coordinates
+    if ob not in shells:
         while ob.data.uv_layers:
             ob.data.uv_layers.remove(ob.data.uv_layers[0])
 

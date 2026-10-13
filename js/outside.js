@@ -1,7 +1,7 @@
 // The grounds: front yard, hearse, pet cemetery, graveyard, crypt, fog, bats, moon & sky.
 import {
   THREE, W, box, boxA, cyl, mesh, sphere, bake, TAU, rand, pick, onUpdate, clamp, lerp, damp, smooth,
-  addLight, hotspot, wait, makeGhost, mat, glow, easeInOut, flat, toBin,
+  addLight, hotspot, wait, makeGhost, ghostMaterial, mat, glow, easeInOut, flat, toBin,
 } from './core.js';
 import { MAT, T, TX } from './materials.js';
 import { D, subtractRects } from './house.js';
@@ -99,10 +99,22 @@ function frontYard(S, G) {
   const pets = [['FIFI', 'good girl'], ['MR. WHISKERS', '9 of 9'], ['CROAKER', 'ribbit'], ['POLLY', 'said it all']];
   pets.forEach(([n, l], i) => grave(S, PETS[i], TX.epitaph([l], { w: 192, h: 192, title: n })));
   if (!B) grave(S, PETS[4], null);
-  const pup = makeGhost({ height: 0.7, width: 0.28, arms: false, color: 0xb8fff0, eyes: true });
+  // the ghost dog: a sculpted puppy (blender/figures.py) drawn with the ghosts' shader, its eyes painted closer
+  // together and its tail wagging; or, with ?figures=0, a little robed ghost
+  let pup, tail = null;
+  if (W.figures) {
+    const gm = ghostMaterial({ color: 0xb8fff0, opacity: 0.9, eyeY: 0.6, eyeX: 0.07, mouth: false, wobble: 0.35 });
+    pup = new THREE.Group(); pup.userData.keepGroup = true;
+    tail = new THREE.Group(); tail.position.set(0, 0.4, -0.25); tail.userData.keepGroup = true; pup.add(tail);
+    P.figure('ghost-dog', pup, { ghost: gm });
+    P.figure('ghost-dog-tail', tail, { ghost: gm }).position.set(0, -0.4, 0.25);   // its shape stays in the dog's frame
+    pup.traverse((m) => { if (m.isMesh) { m.renderOrder = 5; m.userData.ghost = true; } });
+  } else pup = makeGhost({ height: 0.7, width: 0.28, arms: false, color: 0xb8fff0, eyes: true });
   pup.position.set(-20.8, 0.2, 8.4); G.add(pup);
-  const ears = [];
-  onUpdate((t) => { pup.position.set(-20.8 + Math.sin(t * 0.8) * 1.4, 0.25 + Math.abs(Math.sin(t * 3.2)) * 0.25, 8.4 + Math.sin(t * 1.6) * 0.5); pup.rotation.y = Math.cos(t * 0.8) > 0 ? Math.PI / 2 : -Math.PI / 2; });
+  onUpdate((t) => {
+    pup.position.set(-20.8 + Math.sin(t * 0.8) * 1.4, 0.25 + Math.abs(Math.sin(t * 3.2)) * 0.25, 8.4 + Math.sin(t * 1.6) * 0.5); pup.rotation.y = Math.cos(t * 0.8) > 0 ? Math.PI / 2 : -Math.PI / 2;
+    if (tail) tail.rotation.y = Math.sin(t * 14) * 0.6;
+  });
   const petPup = () => { sfx('bark'); say('Woof. (Spectrally.)', {}); };
   hotspot(pup, 'yard', 'A very good ghost', petPup);
   // the great oak with hanging moss behind the tower

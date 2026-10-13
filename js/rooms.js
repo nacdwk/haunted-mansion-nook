@@ -263,6 +263,11 @@ function conservatory(root) {
   const hands = new THREE.Group(); hands.position.set(0, 0.5, 0.42); hands.userData.keepGroup = true; cof.g.add(hands);
   for (const hx of [-0.4, 0.35]) {
     const h = new THREE.Group(); h.position.x = hx; hands.add(h);
+    if (W.figures) {                                   // sculpted bones, the right hand mirrored for the left
+      P.figure('bony-hand', h, { bone: P.withAO(MAT.bone) });
+      if (hx > 0) h.scale.x = -1;
+      continue;
+    }
     boxA(-0.08, 0.08, -0.03, 0.03, -0.06, 0.08, MAT.bone, h);
     for (let f = 0; f < 4; f++) { const fg = cyl(0.016, 0.014, 0.14, MAT.bone, -0.06 + f * 0.04, 0.0, 0.14, h, 4); fg.rotation.x = Math.PI / 2 - 0.4; }
   }
@@ -341,7 +346,19 @@ function seance(root) {
   });
   const orb = new THREE.Mesh(new THREE.SphereGeometry(0.62, 32, 24), ballMat); ball.add(orb);
   const faceM = new THREE.SpriteMaterial({ map: T.leota[0], color: 0xbfffe8, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0.95 });
-  const face = new THREE.Sprite(faceM); face.scale.set(1.05, 1.05, 1); ball.add(face);
+  // Madame Leota: a sculpted head that glows from within (unlit, its shading baked in) and turns to face you, her
+  // eyes and speaking lips painted on (blender/figures.py); or, with ?figures=0, a painted face
+  let leota = null, featM = null;
+  if (W.figures) {
+    leota = new THREE.Group(); leota.scale.setScalar(1.2); leota.position.y = -0.03; leota.userData.keepGroup = true; ball.add(leota);
+    const lit = (c) => new THREE.MeshBasicMaterial({ color: c, vertexColors: true });
+    featM = new THREE.MeshBasicMaterial({ map: T.leotaFeatures[0], transparent: true, depthWrite: false });
+    P.figure('leota-head', leota, { leota_skin: lit(0xc8ffe6) });
+    P.figure('leota-hair', leota, { leota_hair: lit(0x4aa684), leota_band: lit(0x2e7258), leota_jewel: glow('#bfffe8', 3) });
+    P.figure('leota-face', leota, { leota_face: featM });
+  } else {
+    const face = new THREE.Sprite(faceM); face.scale.set(1.05, 1.05, 1); ball.add(face);
+  }
   const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: T.glow, color: 0x5dffc8, transparent: true, opacity: 0.5, depthWrite: false, blending: THREE.AdditiveBlending })); halo.scale.set(2.6, 2.6, 1); ball.add(halo);
   const stand = new THREE.Group(); G.add(stand);
   const bl = new THREE.PointLight(0x5dffc8, 30, 13, 1.3);
@@ -373,7 +390,12 @@ function seance(root) {
     bl.position.copy(ball.position);
     ballMat.uniforms.uSpeak.value = sst.speak > 0 ? 1 : 0.15;
     const mouthF = sst.speak > 0 ? Math.floor((Math.sin(t * 17) * 0.5 + 0.5) * 3.99) : 0;
-    if (faceM.map !== T.leota[mouthF]) faceM.map = T.leota[mouthF];
+    if (leota) {
+      if (featM.map !== T.leotaFeatures[mouthF]) featM.map = T.leotaFeatures[mouthF];
+      let turn = Math.atan2(W.camera.position.x - ball.position.x, W.camera.position.z - ball.position.z) - leota.rotation.y;
+      turn = ((turn + Math.PI) % TAU + TAU) % TAU - Math.PI;   // the short way round
+      leota.rotation.y += turn * (1 - Math.exp(-3 * dt));
+    } else if (faceM.map !== T.leota[mouthF]) faceM.map = T.leota[mouthF];
     halo.material.opacity = 0.4 + 0.2 * Math.sin(t * 2) + (sst.speak > 0 ? 0.3 : 0);
     inst.forEach((it, i) => {
       it.ph += dt * 0.25 * fz;

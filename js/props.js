@@ -205,7 +205,7 @@ export function figure(name, parent, swap = {}) {
   return o;
 }
 // the same material, shaded by a figure's vertex colours
-function withAO(m) {
+export function withAO(m) {
   if (!m.userData.ao) { m.userData.ao = m.clone(); m.userData.ao.vertexColors = true; }
   return m.userData.ao;
 }

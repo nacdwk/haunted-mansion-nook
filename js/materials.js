@@ -71,6 +71,7 @@ export function buildMaterials() {
   T.duel = PT.duelists();
   T.wedding = PT.weddingPortraits();
   T.leota = PT.crystalFaces();
+  T.leotaFeatures = PT.leotaFeatures();
   T.bust = [0, 1, 2, 3, 0].map((k) => PT.bustFaces(k));
 
   // --- materials ---

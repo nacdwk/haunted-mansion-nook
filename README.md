@@ -104,7 +104,7 @@ A few techniques keep it running at 60 fps:
 
 ## Baked sets (experiment)
 
-Three parts of the nook are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall, the outside of the mansion with its stretching tower, and the grounds around it. The solid figures are sculpted there too: the caretaker and his dog, the marble busts and the raven (see below). Everything else, including the ghosts and the other things that move, is still procedural.
+Three parts of the nook are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall, the outside of the mansion with its stretching tower, and the grounds around it. The solid figures are sculpted there too: the caretaker and his dog, the marble busts, the raven, the coffin's bony hands and Madame Leota (see below), and so is the ghost dog's shape. Everything else, including the other ghosts and the other things that move, is still procedural.
 
 - A Python script in `blender/` builds each set (`grand_hall.py`, `exterior.py` and `grounds.py`, with shared helpers in `kit.py` and `trees.py`) and removes faces nobody can see. It then bakes two lightmaps, warm (flames, lamps and lit windows) and cool (moonlight, sky and fill light), and exports Draco-compressed geometry. Thin ironwork is exported without a lightmap and lit live by the site, though it still shades the baked surfaces around it.
 - `js/baked.js` draws the sets with one cheap shader. It reads the lightmaps, maps the site's painted textures onto the surfaces and adds the lantern.
@@ -185,7 +185,13 @@ Each stands on a turned socle. The singing busts' painted eyes and mouths are pr
 
 The raven has a glossy body with a shaggy throat, a wedge-shaped tail, layered wings that still flap when it's startled, a heavy beak, feet that grip its perch, and the same glowing red eyes.
 
-All the figures come to 59,000 triangles and 289 KB (`assets/figures.glb`).
+![The coffin's bony hands, Madame Leota and the ghost dog, before and after](docs/hands-leota-dog.jpg)
+
+- **The hands.** The ones that peek out of the conservatory's coffin are skeletal, with wrist bones, knuckles and finger bones that hook over its rim.
+- **Madame Leota.** She's a sculpted head inside the crystal ball, with her hair parted and falling past her ears, a headband with a glowing jewel, and earrings. Her closed eyes, brows and lips are painted onto her face like the busts', and her lips part as she speaks. She's lit from within (her shading is baked in) and turns to face you.
+- **The ghost dog.** The pet cemetery's ghost is now a floppy-eared puppy with a wagging tail, drawn with the same glowing shader as the other ghosts.
+
+All the figures come to 74,000 triangles and 353 KB (`assets/figures.glb`).
 
 The ghosts are still made in code, so they cost nothing to download, but from a new generator in `js/core.js`. Each has an egg-shaped head on a neck and sloping shoulders, and a robe with folds whose hem trails off into wisps. Sleeves on curved arms end in mitten hands, and the hats are sized to the head: top hats, bowlers, crowns, a bun, the bride's veil (open in front of her face) and the organist's hood. The 59 ghosts went from 33,000 to 179,000 triangles. Their geometry stays indexed, so each vertex is wobbled once rather than once for every triangle it touches.
 
