@@ -768,6 +768,9 @@ function basement(root) {
   });
   const S = new THREE.Group(), G = new THREE.Group(); root.add(G);
   const y0 = D.BY0, zw = D.BZ0 + 0.3;
+  // The baked basement (blender/basement.py) brings the sconces, the lanterns, the mirror's frame, the boarding
+  // platform and the ramp; the portraits, the mirror itself, the sign's lettering, the attendant and the raven stay.
+  const BK = !!W.bakedBasement;
   const frames = [];
   [-13.4, -7.6, -1.8, 4.0].forEach((x, i) => {
     const f = P.framed(G, T.lightning[i][0], 1.55, 1.95, { ei: 0.3 });
@@ -776,22 +779,28 @@ function basement(root) {
     frames.push({ f, i });
   });
   W.lightningPortraits = (on) => { for (const fr of frames) { const m = fr.f.userData.paint; m.map = T.lightning[fr.i][on ? 1 : 0]; m.emissiveMap = m.map; } };
-  for (const x of [-16.2, -10.5, -4.7, 1.1, 6.9]) P.sconce(S, x, -2.4, zw + 0.06, 0, { m: MAT.flameBlue });
-  for (const x of [-15.0, -6.0, 3.0, 12.6]) { const lt = P.lantern(S, x, -2.0, 8.6, { s: 1.1, hang: true }); cyl(0.01, 0.01, 1.0, MAT.iron, x, -0.9, 8.6, S, 3); }
+  if (!BK) {
+    for (const x of [-16.2, -10.5, -4.7, 1.1, 6.9]) P.sconce(S, x, -2.4, zw + 0.06, 0, { m: MAT.flameBlue });
+    for (const x of [-15.0, -6.0, 3.0, 12.6]) { const lt = P.lantern(S, x, -2.0, 8.6, { s: 1.1, hang: true }); cyl(0.01, 0.01, 1.0, MAT.iron, x, -0.9, 8.6, S, 3); }
+  }
   // mirror niche with a gilded frame
   const mx0 = 8.0, mx1 = 12.0, my0 = -5.15, my1 = -1.45;
-  boxA(mx0 - 0.25, mx0, my0 - 0.25, my1 + 0.25, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, S);
-  boxA(mx1, mx1 + 0.25, my0 - 0.25, my1 + 0.25, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, S);
-  boxA(mx0, mx1, my1, my1 + 0.25, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, S);
-  boxA(mx0, mx1, my0 - 0.25, my0, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, S);
-  const crest = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.08, 6, 16, Math.PI), MAT.gold); crest.position.set((mx0 + mx1) / 2, my1 + 0.25, D.BZ0 + 0.3); S.add(crest);
+  if (!BK) {
+    boxA(mx0 - 0.25, mx0, my0 - 0.25, my1 + 0.25, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, S);
+    boxA(mx1, mx1 + 0.25, my0 - 0.25, my1 + 0.25, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, S);
+    boxA(mx0, mx1, my1, my1 + 0.25, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, S);
+    boxA(mx0, mx1, my0 - 0.25, my0, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, S);
+    const crest = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.08, 6, 16, Math.PI), MAT.gold); crest.position.set((mx0 + mx1) / 2, my1 + 0.25, D.BZ0 + 0.3); S.add(crest);
+  }
   const mirrorDark = new THREE.MeshStandardMaterial({ color: 0x1a1830, roughness: 0.05, metalness: 0.95, emissive: 0x0c0a18 });
   const mirror = mesh(new THREE.PlaneGeometry(mx1 - mx0, my1 - my0), mirrorDark, (mx0 + mx1) / 2, (my0 + my1) / 2, D.BZ0 + 0.02, G);
   mirror.userData.keep = true;
   W.mirrorSpot = { x: (mx0 + mx1) / 2, y: (my0 + my1) / 2, z: D.BZ0 + 0.03, w: mx1 - mx0, h: my1 - my0, dark: mirror };
   // load platform & sign
-  boxA(13.0, 18.6, y0, y0 + 0.25, 9.5, 10.45, MAT.woodDark, S);
-  boxA(13.0, 18.6, y0 + 0.25, y0 + 0.3, 9.48, 9.6, MAT.gold, S);
+  if (!BK) {
+    boxA(13.0, 18.6, y0, y0 + 0.25, 9.5, 10.45, MAT.woodDark, S);
+    boxA(13.0, 18.6, y0 + 0.25, y0 + 0.3, 9.48, 9.6, MAT.gold, S);
+  }
   const sign = mesh(new THREE.PlaneGeometry(4.2, 0.62), new THREE.MeshStandardMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 768; c.height = 112; const x = c.getContext('2d'); x.fillStyle = '#1c1224'; x.fillRect(0, 0, 768, 112); x.strokeStyle = '#c9a24a'; x.lineWidth = 6; x.strokeRect(6, 6, 756, 100); x.fillStyle = '#e9cf8a'; x.font = '50px "IM Fell English SC", Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('Doom Buggies · Board Here', 384, 60); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })(), emissive: 0xffffff, emissiveIntensity: 0.25, roughness: 0.6 }), 15.7, -1.55, zw + 0.03, S);
   sign.material.emissiveMap = sign.material.map;
   // the attendant
@@ -801,11 +810,13 @@ function basement(root) {
   atl.g.userData.keepGroup = true;
   onUpdate((t) => { att.position.y = y0 + 0.25 + Math.sin(t * 1.3) * 0.06; att.rotation.y = 0.5 + Math.sin(t * 0.4) * 0.3; });
   // ramp from the cellar doors
-  const rx0 = 22.0, ry0 = -0.2, rx1 = 14.4, ry1 = y0;
-  const rl = Math.hypot(rx0 - rx1, ry0 - ry1), ra = Math.atan2(ry0 - ry1, rx0 - rx1);
-  const rg = new THREE.Group(); rg.position.set((rx0 + rx1) / 2, (ry0 + ry1) / 2 - 0.15, 8.2); rg.rotation.z = ra; S.add(rg);
-  boxA(-rl / 2, rl / 2, -0.12, 0.05, -1.2, 1.2, MAT.woodDark, rg);
-  for (let k = 0; k < 6; k++) { const px = lerp(rx1, rx0, k / 5); cyl(0.1, 0.1, Math.max(0.1, lerp(ry1, ry0, k / 5) - y0), MAT.walnut, px, y0 + Math.max(0.1, lerp(ry1, ry0, k / 5) - y0) / 2, 9.2, S, 6); }
+  if (!BK) {
+    const rx0 = 22.0, ry0 = -0.2, rx1 = 14.4, ry1 = y0;
+    const rl = Math.hypot(rx0 - rx1, ry0 - ry1), ra = Math.atan2(ry0 - ry1, rx0 - rx1);
+    const rg = new THREE.Group(); rg.position.set((rx0 + rx1) / 2, (ry0 + ry1) / 2 - 0.15, 8.2); rg.rotation.z = ra; S.add(rg);
+    boxA(-rl / 2, rl / 2, -0.12, 0.05, -1.2, 1.2, MAT.woodDark, rg);
+    for (let k = 0; k < 6; k++) { const px = lerp(rx1, rx0, k / 5); cyl(0.1, 0.1, Math.max(0.1, lerp(ry1, ry0, k / 5) - y0), MAT.walnut, px, y0 + Math.max(0.1, lerp(ry1, ry0, k / 5) - y0) / 2, 9.2, S, 6); }
+  }
   P.cobweb(S, -21.3, -0.8, 6.0, 0, 1.4); P.cobweb(S, 20.2, -0.8, 6.0, -Math.PI / 2, 1.2);
   const rv = P.raven(G, -9.25, -0.98, 9.6, 0.4, 1.2);
   const b1 = new THREE.PointLight(0x58e0cf, 12, 14, 1.4); b1.position.set(-9.5, -1.6, 8.6);

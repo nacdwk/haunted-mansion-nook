@@ -104,6 +104,7 @@ function dressWindow(g, o, { curtain = MAT.curtainRed, glowMat = MAT.windowGlow,
 export function buildBase(root) {
   const S = new THREE.Group();
   const { BX0, BX1, BZ0, BZ1, BY0, BY1, PX0, PX1, PZ0, PZ1, PY0 } = D;
+  const hall = !W.bakedBasement; // the baked basement brings the hall itself: its floor, walls, ceiling and front beam
   // grass top (with the cellar hole the ride descends through)
   const hole = { x0: 15.4, x1: 21.9, z0: 7.0, z1: 9.4 };
   const topRects = subtractRects(PX0, PX1, PZ0, PZ1, [{ u0: hole.x0, u1: hole.x1, v0: hole.z0, v1: hole.z1 }]);
@@ -115,25 +116,29 @@ export function buildBase(root) {
   boxA(PX0, PX1, PY0, BY1, PZ0, BZ0, MAT.soil, S);          // behind the corridor
   boxA(PX0, BX0, PY0, BY1, BZ0, PZ1, MAT.soil, S);          // left end
   boxA(BX1, PX1, PY0, BY1, BZ0, PZ1, MAT.soil, S);          // right end (under the graveyard)
-  boxA(BX0, BX1, PY0, BY0, BZ0, PZ1, MAT.flags, S);         // corridor floor
+  if (hall) boxA(BX0, BX1, PY0, BY0, BZ0, PZ1, MAT.flags, S);         // corridor floor
   // corridor back wall (stone) with the tunnel arch & mirror niche
   const tunnel = { u0: -20.6, u1: -18.0, v0: BY0, v1: -2.4 };
   const mirrorN = { u0: 8.0, u1: 12.0, v0: -5.15, v1: -1.45 };
-  for (const r of subtractRects(BX0, BX1, BY0, BY1, [tunnel, mirrorN])) boxA(r.u0, r.u1, r.v0, r.v1, BZ0 - 0.01, BZ0 + 0.22, MAT.stoneDark, S);
-  // wainscot + damask on the corridor's back wall (between tunnel and the ramp)
-  for (const r of subtractRects(-17.6, 13.0, -5.2, -1.2, [mirrorN])) boxA(r.u0, r.u1, r.v0, r.v1, BZ0 + 0.22, BZ0 + 0.3, MAT.papBase, S);
-  for (const r of subtractRects(-17.6, 13.0, BY0, -4.1, [mirrorN])) boxA(r.u0, r.u1, r.v0, r.v1, BZ0 + 0.22, BZ0 + 0.36, MAT.wainscotDark, S);
-  boxA(-17.6, 13.0, -4.12, -3.98, BZ0 + 0.22, BZ0 + 0.42, MAT.walnut, S);
+  if (hall) {
+    for (const r of subtractRects(BX0, BX1, BY0, BY1, [tunnel, mirrorN])) boxA(r.u0, r.u1, r.v0, r.v1, BZ0 - 0.01, BZ0 + 0.22, MAT.stoneDark, S);
+    // wainscot + damask on the corridor's back wall (between tunnel and the ramp)
+    for (const r of subtractRects(-17.6, 13.0, -5.2, -1.2, [mirrorN])) boxA(r.u0, r.u1, r.v0, r.v1, BZ0 + 0.22, BZ0 + 0.3, MAT.papBase, S);
+    for (const r of subtractRects(-17.6, 13.0, BY0, -4.1, [mirrorN])) boxA(r.u0, r.u1, r.v0, r.v1, BZ0 + 0.22, BZ0 + 0.36, MAT.wainscotDark, S);
+    boxA(-17.6, 13.0, -4.12, -3.98, BZ0 + 0.22, BZ0 + 0.42, MAT.walnut, S);
+  }
   // tunnel throat (dark)
   boxA(tunnel.u0, tunnel.u1, BY0, tunnel.v1, BZ0 - 2.5, BZ0 - 0.4, MAT.void, S);
-  for (let i = 0; i < 7; i++) { // arch voussoirs
+  if (hall) for (let i = 0; i < 7; i++) { // arch voussoirs
     const a = Math.PI * (i / 6);
     const bx = (tunnel.u0 + tunnel.u1) / 2 + Math.cos(a) * 1.55, by = tunnel.v1 - 0.6 + Math.sin(a) * 1.0;
     const b = box(0.55, 0.4, 0.5, MAT.stone, bx, by, BZ0 + 0.3, S); b.rotation.z = a - Math.PI / 2;
   }
   // ceiling beams & joists
-  for (let x = BX0 + 1.2; x < BX1; x += 2.6) boxA(x - 0.18, x + 0.18, BY1 - 0.38, BY1, BZ0, PZ1, MAT.walnut, S);
-  boxA(BX0, BX1, BY1 - 0.06, BY1, BZ0, PZ1, MAT.woodDark, S);
+  if (hall) {
+    for (let x = BX0 + 1.2; x < BX1; x += 2.6) boxA(x - 0.18, x + 0.18, BY1 - 0.38, BY1, BZ0, PZ1, MAT.walnut, S);
+    boxA(BX0, BX1, BY1 - 0.06, BY1, BZ0, PZ1, MAT.woodDark, S);
+  }
   // the book-nook frame: walnut lips, posts, base tray with brass corners
   boxA(PX0 - 0.35, PX1 + 0.35, -0.28, 0.18, PZ1, PZ1 + 0.35, MAT.walnut, S);
   boxA(PX0 - 0.35, PX1 + 0.35, -0.28, 0.18, PZ0 - 0.35, PZ0, MAT.walnut, S);
@@ -148,8 +153,10 @@ export function buildBase(root) {
     boxA(x - 0.38, x + 0.38, PY0 - 1.0, PY0 - 0.6, z - 0.38, z + 0.38, MAT.brass, S);
   }
   // corridor proscenium: top beam with corbels + lace filigree
-  boxA(BX0, BX1, BY1 - 0.55, BY1 + 0.25, PZ1 - 0.25, PZ1 + 0.18, MAT.walnut, S);
-  for (let x = BX0 + 1.2; x < BX1; x += 2.6) boxA(x - 0.2, x + 0.2, BY1 - 1.1, BY1 - 0.5, PZ1 - 0.6, PZ1 + 0.1, MAT.walnut, S);
+  if (hall) {
+    boxA(BX0, BX1, BY1 - 0.55, BY1 + 0.25, PZ1 - 0.25, PZ1 + 0.18, MAT.walnut, S);
+    for (let x = BX0 + 1.2; x < BX1; x += 2.6) boxA(x - 0.2, x + 0.2, BY1 - 1.1, BY1 - 0.5, PZ1 - 0.6, PZ1 + 0.1, MAT.walnut, S);
+  }
   const fil = mesh(new THREE.PlaneGeometry(BX1 - BX0, 0.55), MAT.filigree, (BX0 + BX1) / 2, BY1 - 0.78, PZ1 + 0.02, S);
   { const uv = fil.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * (BX1 - BX0) / 2.2); }
   // engraved brass nameplate on the front of the tray
@@ -157,15 +164,17 @@ export function buildBase(root) {
   const plate = mesh(new THREE.PlaneGeometry(10.5, 0.62), new THREE.MeshStandardMaterial({ map: plateTex, roughness: 0.35, metalness: 0.6, emissiveMap: plateTex, emissive: 0xffffff, emissiveIntensity: 0.18 }), 4, PY0 - 0.45, PZ1 + 0.712, S);
   boxA(-1.35, 9.35, PY0 - 0.8, PY0 - 0.1, PZ1 + 0.69, PZ1 + 0.705, MAT.brass, S);
   for (const sx of [-1.15, 9.15]) sphere(0.06, MAT.gold, sx, PY0 - 0.45, PZ1 + 0.72, S, 6, 4);
-  boxA(BX0 - 0.25, BX0 + 0.25, PY0, 0, PZ1 - 0.4, PZ1 + 0.2, MAT.walnut, S);
-  boxA(BX1 - 0.25, BX1 + 0.25, PY0, 0, PZ1 - 0.4, PZ1 + 0.2, MAT.walnut, S);
-  // corridor right end wall & left end
-  boxA(BX1 - 0.3, BX1, BY0, BY1, BZ0, PZ1, MAT.stoneDark, S);
-  boxA(BX0, BX0 + 0.3, BY0, BY1, BZ0, PZ1, MAT.stoneDark, S);
-  // carpet runner along the corridor
-  boxA(BX0 + 0.4, 13.2, BY0, BY0 + 0.04, 6.9, 9.5, MAT.velvetRed, S);
-  boxA(BX0 + 0.4, 13.2, BY0, BY0 + 0.05, 6.85, 6.95, MAT.gold, S);
-  boxA(BX0 + 0.4, 13.2, BY0, BY0 + 0.05, 9.45, 9.55, MAT.gold, S);
+  if (hall) {
+    boxA(BX0 - 0.25, BX0 + 0.25, PY0, 0, PZ1 - 0.4, PZ1 + 0.2, MAT.walnut, S);
+    boxA(BX1 - 0.25, BX1 + 0.25, PY0, 0, PZ1 - 0.4, PZ1 + 0.2, MAT.walnut, S);
+    // corridor right end wall & left end
+    boxA(BX1 - 0.3, BX1, BY0, BY1, BZ0, PZ1, MAT.stoneDark, S);
+    boxA(BX0, BX0 + 0.3, BY0, BY1, BZ0, PZ1, MAT.stoneDark, S);
+    // carpet runner along the corridor
+    boxA(BX0 + 0.4, 13.2, BY0, BY0 + 0.04, 6.9, 9.5, MAT.velvetRed, S);
+    boxA(BX0 + 0.4, 13.2, BY0, BY0 + 0.05, 6.85, 6.95, MAT.gold, S);
+    boxA(BX0 + 0.4, 13.2, BY0, BY0 + 0.05, 9.45, 9.55, MAT.gold, S);
+  }
   toBin(S);
   return { hole };
 }
