@@ -228,8 +228,23 @@ for s in (-1, 1):                                                 # cheek blocks
 # ------------------------------------------------------------------ mansard: four slopes (each dissolves on its own), dormers in front
 B, Bz, Tx, Tz = 14.25, 5.25, 12.3, 3.3
 MID = (0.0, 16.0, 0.0)
+# The dormers stand out from the front slope, their faces at z DZ. Behind each, a hole in the slope (x ± 1.03, from
+# where the face meets it up to the eaves) opens into a nook in the attic, which blender/attic.py lines.
+DZ, DX = 5.12, (-8.0, 0.0, 8.0)
+HY0, HY1 = AT + (Bz - DZ) * (TOP - AT) / (Bz - Tz), 17.1
+def front_pieces(half=1.03, y0=HY0, y1=HY1):
+    """The front slope round the dormers' holes: a band below them, one above, and the pieces between."""
+    t = lambda y: (y - AT) / (TOP - AT)
+    P = lambda x, y: (x, y, Bz - (Bz - Tz) * t(y))
+    X = lambda y: B - (B - Tx) * t(y)
+    out = [[P(-X(AT), AT), P(X(AT), AT), P(X(y0), y0), P(-X(y0), y0)], [P(-X(y1), y1), P(X(y1), y1), P(X(TOP), TOP), P(-X(TOP), TOP)]]
+    edges = [None] + [e for d in DX for e in (d - half, d + half)] + [None]
+    for a, b in zip(edges[::2], edges[1::2]):
+        out.append([P(a if a is not None else -X(y0), y0), P(b if b is not None else X(y0), y0),
+                    P(b if b is not None else X(y1), y1), P(a if a is not None else -X(y1), y1)])
+    return out
 SLOPES = {
-    'front': [[(-B, AT, Bz), (B, AT, Bz), (Tx, TOP, Tz), (-Tx, TOP, Tz)]],
+    'front': front_pieces(),
     'back': [[(B, AT, -Bz), (-B, AT, -Bz), (-Tx, TOP, -Tz), (Tx, TOP, -Tz)]],
     'left': [[(-B, AT, -Bz), (-B, AT, Bz), (-Tx, TOP, Tz), (-Tx, TOP, -Tz)]],
 }
@@ -259,20 +274,25 @@ for side, quads in SLOPES.items():
         p0, p1 = pt(tO, zA), pt(tO, zB)
         box(p0[0] - 0.2, p0[0] + 0.3, p0[1] - 0.15, p0[1] + 0.2, zA - 0.2, zB + 0.2, T)
 
-def dormer(x, z=4.25):
-    """Only a dormer's top stands proud of the shingles, so it stops just inside them: the rest would stand inside
-    the attic, across the Doom Buggies' track. zb(y) is that cut at height y; the trim stops where it is hidden."""
-    w, y0, h = 2.3, 14.6, 2.5
+def dormer(x, z=DZ):
+    """A dormer standing out from the front slope: its arched window (the pane stays procedural) in a casing between
+    pilasters, under a pedimented gable. Its cheeks run back down to the slope; zb(y) is just inside the shingles."""
+    w, ry = 2.3, HY1
     k = (Bz - Tz) / (TOP - AT)
     zb = lambda y: Bz - 0.064 - k * (y - AT)
-    ry, yc, yt = y0 + h, AT + (Bz - 0.064 - z) / k, 16.45
-    slab2d([(z, yc), (z, ry), (zb(ry), ry)], x - w / 2, x + w / 2, M['siding'], plane='zy')
+    yb = AT + (Bz - 0.064 - z) / k                                  # where the face meets the shingles
+    for (u0, u1, v0, v1) in [(-w / 2, -0.6, yb, ry), (0.6, w / 2, yb, ry), (-0.6, 0.6, yb, 14.9), (-0.6, 0.6, 16.6, ry)]:
+        box(x + u0, x + u1, v0, v1, z - 0.12, z, M['siding'])         # the face, round the window
+    for a in (x - w / 2, x + w / 2 - 0.12):                          # the cheeks
+        slab2d([(z, yb), (z, ry + 0.12), (zb(ry + 0.12), ry + 0.12)], a, a + 0.12, M['siding'], plane='zy')
+    box(x - w / 2 - 0.06, x + w / 2 + 0.06, yb, HY0 + 0.1, z - 0.2, z + 0.06, T)   # its foot on the slope
     fw = Wall((x, 0, z), (1, 0, 0), (0, 0, 1), 0)
-    for (a, b) in [(-0.76, -0.6), (0.6, 0.76)]:                     # window casing (the arched pane stays procedural)
-        fw.box(a, b, yt, 16.6, 0, 0.08, T)
+    for (a, b) in [(-0.76, -0.6), (0.6, 0.76)]:                     # window casing
+        fw.box(a, b, 14.9, 16.6, 0, 0.08, T)
+    fw.box(-0.76, 0.76, 14.76, 14.9, 0, 0.14, T)
     fw.box(-0.76, 0.76, 16.6, 16.74, 0, 0.08, T)
     for (a, b) in [(-1.12, -0.86), (0.86, 1.12)]:                   # pilasters
-        fw.box(a, b, yt, 16.95, 0, 0.1, T)
+        fw.box(a, b, HY0 + 0.1, 16.95, 0, 0.1, T)
         fw.box(a - 0.03, b + 0.03, 16.85, 17.0, 0, 0.13, T)
     for q in ([(x - w / 2 - 0.3, ry, z + 0.3), (x, ry + 1.2, z + 0.3), (x, ry + 1.2, zb(ry + 1.2)), (x - w / 2 - 0.3, ry, zb(ry))],
               [(x, ry + 1.2, z + 0.3), (x + w / 2 + 0.3, ry, z + 0.3), (x + w / 2 + 0.3, ry, zb(ry)), (x, ry + 1.2, zb(ry + 1.2))]):
@@ -283,7 +303,7 @@ def dormer(x, z=4.25):
         prism([(e, ry - 0.06, z + 0.06), (x, ry + 1.14, z + 0.06), (x, ry + 1.26, z + 0.06), (e, ry + 0.06, z + 0.06)], (0, 0, 0.18), T)
     lathe([(0, 0), (0.12, 0), (0.1, 0.1), (0.16, 0.22), (0.08, 0.36), (0.03, 0.5), (0, 0.58)], x, ry + 1.2, z + 0.24, M['gold'], seg=10)
 group('mansard-front')
-for x in (-8.0, 0.0, 8.0):
+for x in DX:
     dormer(x)
 
 # ------------------------------------------------------------------ the roof that floats: deck, chimneys, cupola
@@ -440,8 +460,8 @@ for side, (w, holes) in FACADES.items():                            # every lit 
         power = {'win': 130 if v0 < F2 else 110, 'door': 30, 'door2': 120, 'glass': 90, 'arch': 40}[kind]
         light(f'{side}_{kind}', 'AREA', w.p((u0 + u1) / 2, (v0 + v1) / 2, -0.14), WARM_WINDOW, power,
               size=(u1 - u0) * 0.92, size_y=(v1 - v0) * 0.92, aim=w.n)
-for x in (-8.0, 0.0, 8.0):
-    light('dormer', 'AREA', (x, 15.75, 4.32), WARM_WINDOW, 40, size=1.1, size_y=1.6, aim=(0, 0, 1))
+for x in DX:
+    light('dormer', 'AREA', (x, 15.75, DZ - 0.06), WARM_WINDOW, 40, size=1.1, size_y=1.6, aim=(0, 0, 1))
 for i in range(8):
     a = i / 8 * math.tau
     light('cupola', 'AREA', (math.sin(a) * 1.9, cy0 + 1.85, math.cos(a) * 1.9), WARM_WINDOW, 15, size=0.9, size_y=1.6, aim=(math.sin(a), 0, math.cos(a)))

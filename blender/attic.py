@@ -19,7 +19,7 @@ import bmesh, bpy
 import numpy as np
 from mathutils import Vector
 import kit
-from kit import M, mat, box, cyl, lathe, sphere, prism, slab2d, rod, torus, loft, subtract, free_runs, group, light, blocker, empty
+from kit import M, mat, box, cyl, lathe, sphere, prism, slab, slab2d, rod, torus, loft, subtract, free_runs, group, light, blocker, empty
 
 A = kit.args({'out': 'assets', 'size': 2048, 'cool_size': 1024, 'samples': 256})
 kit.reset_scene(A['samples'])
@@ -51,8 +51,22 @@ def rpt(t, z):
     return (B - (B - TX) * t, AT + (TOP - AT) * t, z)
 RZA, RZB, RTO = 1.0, 3.6, 0.52
 TOP_O = AT + (TOP - AT) * RTO                       # the top of the ride's opening
+# The dormers stand out from the front slope (blender/exterior.py), their faces at z DZ. Behind each, a hole in the
+# slope (x ± 1.03, from where the face meets it up to the eaves at HY1) opens into a nook, which is lined here.
+DZ, DX = 5.12, (-8.0, 0.0, 8.0)
+HY0, HY1 = AT + (BZ - DZ) / K, 17.1
+def front_pieces(half, y0, y1):
+    """The front slope round the dormers' holes: a band below them, one above, and the pieces between."""
+    P = lambda x, y: (x, y, BZ - K * (y - AT))
+    X = lambda y: B - K * (y - AT)
+    out = [[P(-X(AT), AT), P(X(AT), AT), P(X(y0), y0), P(-X(y0), y0)], [P(-X(y1), y1), P(X(y1), y1), P(X(TOP), TOP), P(-X(TOP), TOP)]]
+    edges = [None] + [e for d in DX for e in (d - half, d + half)] + [None]
+    for a, b in zip(edges[::2], edges[1::2]):
+        out.append([P(a if a is not None else -X(y0), y0), P(b if b is not None else X(y0), y0),
+                    P(b if b is not None else X(y1), y1), P(a if a is not None else -X(y1), y1)])
+    return out
 SLOPES = {
-    'front': [[(-B, AT, BZ), (B, AT, BZ), (TX, TOP, TZ), (-TX, TOP, TZ)]],
+    'front': front_pieces(1.03, HY0, HY1),             # the shingles' holes; the lining's are a little smaller
     'back': [[(B, AT, -BZ), (-B, AT, -BZ), (-TX, TOP, -TZ), (TX, TOP, -TZ)]],
     'left': [[(-B, AT, -BZ), (-B, AT, BZ), (-TX, TOP, TZ), (-TX, TOP, -TZ)]],
     'right': [[rpt(0, RZA), rpt(0, -BZ), rpt(1, -TZ), rpt(1, RZA)],
@@ -113,14 +127,40 @@ PORTRAITS = [-7.4, -4.9, 3.8, 6.3]                  # on the back slope, y 15.5 
 RAFT_TOP = TOP - 0.2                                # the roof deck's underside
 for side in ('front', 'back', 'left', 'right'):
     group('slope-' + side)
-    for q in SLOPES[side]:
+    for q in (front_pieces(0.99, HY0, 17.06) if side == 'front' else SLOPES[side]):
         n = inward(q)
         prism([tuple(Vector(p) + n * 0.13) for p in q], tuple(n * (INNER - 0.13)), M['lining'])
 group('slope-front')
 for x in np.arange(-11.2, 11.3, 1.4):
-    rafter('front', x, AT + 0.01, RAFT_TOP)
-for y in (15.7, 17.6, 18.9):
+    if all(abs(x - d) > 1.6 for d in DX):
+        rafter('front', x, AT + 0.01, RAFT_TOP)
+for d in DX:                                        # trimmers each side of a nook, and a header over it
+    for s in (-1, 1):
+        rafter('front', d + s * 1.1, AT + 0.01, RAFT_TOP)
+    purlin('front', 17.13, [(d - 1.15, d + 1.15)])
+purlin('front', 15.7, free_runs(-reach('front', 15.7), reach('front', 15.7), [(d - 1.1, d + 1.1) for d in DX]))
+for y in (17.6, 18.9):
     purlin('front', y, [(-reach('front', y), reach('front', y))])
+
+def nook(d):
+    """The nook behind a dormer: plank walls and ceiling, a ledge, and the window's inside with its casing, sill and
+    arched head. The glass is the site's, a pane of night sky."""
+    zi = lambda y: BZ - K * (y - AT) - HOFF - 0.02     # a little proud of the lining
+    fz = DZ - 0.12                                      # the inside of the dormer's face
+    for a in (d - 1.03, d + 0.99):
+        slab2d([(zi(14.25), 14.25), (fz, 14.25), (fz, 17.05), (zi(17.05), 17.05)], a, a + 0.04, M['lining'], plane='zy')
+    box(d - 1.03, d + 1.03, 16.98, 17.05, zi(17.0), fz, M['lining'])
+    box(d - 1.03, d + 1.03, 14.25, 14.33, zi(14.29), fz, M['walnut'])
+    for (u0, u1, v0, v1) in ((-0.99, -0.6, 14.33, 16.98), (0.6, 0.99, 14.33, 16.98), (-0.6, 0.6, 14.33, 14.9), (-0.6, 0.6, 16.6, 16.98)):
+        box(d + u0, d + u1, v0, v1, fz - 0.03, fz, M['lining'])
+    for u0, u1 in ((-0.7, -0.6), (0.6, 0.7)):
+        box(d + u0, d + u1, 14.9, 16.6, fz - 0.06, fz - 0.03, M['walnut'])
+    box(d - 0.7, d + 0.7, 16.6, 16.7, fz - 0.06, fz - 0.03, M['walnut'])
+    box(d - 0.74, d + 0.74, 14.84, 14.9, fz - 0.2, DZ - 0.05, M['walnut'])
+    arch = [(d + 0.6 * math.cos(a), 16.175 + 0.41 * math.sin(a)) for a in np.linspace(0, math.pi, 13)]
+    slab2d([(d - 0.6, 16.6), (d + 0.6, 16.6)] + arch, fz - 0.02, DZ - 0.05, M['walnut'], plane='xy')
+for d in DX:
+    nook(d)
 for sx in (-1, 1):
     hip(sx, 1)
 group('slope-back')
@@ -299,6 +339,16 @@ for (x, z, r, w, d, h) in ((-4.4, -3.55, 0.2, 1.0, 0.9, 1.0), (12.4, -3.3, -0.1,
 for side, quads in SLOPES.items():
     for q in quads:
         blocker(prism([tuple(p) for p in q], tuple(inward(q) * 0.13), M['lining']))
+zb = lambda y: BZ - 0.064 - K * (y - AT)              # the dormers round the nooks, as blender/exterior.py builds them
+yb = AT + (BZ - 0.064 - DZ) / K
+for d in DX:
+    for (u0, u1, v0, v1) in ((-1.15, -0.6, yb, HY1), (0.6, 1.15, yb, HY1), (-0.6, 0.6, yb, 14.9), (-0.6, 0.6, 16.6, HY1)):
+        blocker(box(d + u0, d + u1, v0, v1, DZ - 0.12, DZ, M['lining']))
+    for a in (d - 1.15, d + 1.03):
+        blocker(slab2d([(DZ, yb), (DZ, HY1 + 0.12), (zb(HY1 + 0.12), HY1 + 0.12)], a, a + 0.12, M['lining'], plane='zy'))
+    for q in ([(d - 1.45, HY1, DZ + 0.3), (d, HY1 + 1.2, DZ + 0.3), (d, HY1 + 1.2, zb(HY1 + 1.2)), (d - 1.45, HY1, zb(HY1))],
+              [(d, HY1 + 1.2, DZ + 0.3), (d + 1.45, HY1, DZ + 0.3), (d + 1.45, HY1, zb(HY1)), (d, HY1 + 1.2, zb(HY1 + 1.2))]):
+        blocker(slab(q, 0.12, M['lining'], toward=(d, HY1, DZ - 1.1)))
 blocker(box(-12.45, 12.45, TOP - 0.2, TOP + 0.3, -3.45, 3.45, M['lining']))
 blocker(box(-14.2, 14.2, 13.4, 13.92, -5.1, 5.1, M['lining']))                # the slab under the boards
 for x0, x1, z0, z1 in ((-14.05, 14.05, -5.06, -4.55), (-14.05, 14.05, 4.55, 5.06), (-14.06, -13.55, -5.0, 5.0), (13.55, 14.06, -5.0, 5.0)):
@@ -307,14 +357,22 @@ for x0, x1, z0, z1 in ((-14.05, 14.05, -5.06, -4.55), (-14.05, 14.05, 4.55, 5.06
 # ------------------------------------------------------------------ lights
 light('bride_glow', 'POINT', (1.0, AT + 2.9, -0.4), BRIDE, 900, size=0.5)   # js/rooms.js's light round the bride
 light('night_out', 'AREA', (14.35, AT + 1.4, 2.3), NIGHT, 120, size=2.4, size_y=2.6, aim=(-1, -0.25, 0), group='cool')
+for d in DX:                                        # and through the dormers' windows
+    light('moon_dormer', 'AREA', (d, 15.75, DZ + 0.3), NIGHT, 50, size=1.1, size_y=1.6, aim=(0, -0.3, -1), group='cool')
 
 def hidden(n, c):
     """Faces no one sees that the buried-face test can miss where they meet a blocker's edge: the undersides of the
-    floor and rug, the floor's cut edges under the house's trim, and the backs of the linings against the slopes."""
+    floor and rug, the floor's cut edges under the house's trim, the backs of the linings against the slopes, and the
+    backs of the nooks against the dormers."""
     if n[1] < -0.9 and c[1] < AT + 0.02:
         return True
     if (n[2] > 0.9 and c[2] > 4.59 or n[0] > 0.9 and c[0] > 13.59) and c[1] < AT:
         return True
+    for d in DX:                                    # the nooks' backs, against the dormers
+        if abs(c[0] - d) < 1.035 and c[2] > 3.8 and (n[2] > 0.9 and abs(c[2] - (DZ - 0.12)) < 0.005 or n[1] > 0.9 and abs(c[1] - 17.05) < 0.005):
+            return True
+        if 1.025 < abs(c[0] - d) < 1.035 and n[0] * (c[0] - d) > 0.9 and c[2] > 3.8:
+            return True
     for quads in SLOPES.values():
         out = -inward(quads[0])
         if Vector(n).dot(out) > 0.99 and -0.15 < (Vector(c) - Vector(quads[0][0])).dot(out) < -0.11:

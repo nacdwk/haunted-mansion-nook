@@ -197,22 +197,25 @@ The long room under the mansard, where the bride waits with a candle, is a set t
 - **The roof.** Each slope is lined with planks on rafters and purlins, with beams along the hips. The Doom Buggies' way out through the right slope is framed with jambs and a header. Each slope's lining melts with that slope.
 - **The furniture.** The grand piano has a proper keyboard and a lid on its short stick. The site's own piano had its tail through the pianist. The steamer trunks have domed lids, wooden slats and brass corners. There are stacked hat boxes, a dress form in a gown that falls in folds, a birdcage, candle stands, a cheval mirror, and furniture under dust sheets.
 - **The light.** The bride's light never moves, so it is baked with the candles. The night comes in through the ride's opening.
-- **The dormers.** They used to reach two metres into the attic, behind the shingles, and the Doom Buggies drove through their walls. Now they stop at the roof, in the exterior's set and in the procedural house. From outside they look the same, because only their tops ever showed above the shingles.
+- **The dormers.** They used to sit almost entirely behind the shingles, with their windows hidden, and reached two metres into the attic, so the Doom Buggies drove through their walls. Now they stand out from the roof (in the exterior's set and in the procedural house), and their arched windows glow between pilasters. Behind each one, the slope opens into a plank-lined nook in the attic, with the window at its back and moonlight coming in.
+
+![The dormers before and after, from outside and from the ride, and a nook inside the attic](docs/dormers.jpg)
+
 - **Still procedural.** Everything that moves stays the site's: the bride with the candelabra, the ghosts in the trunks, the pianist, and the rocking chair. So do the wedding portraits and the cobwebs.
 - **Brightness.** The procedural attic took most of its light from the house's ambient light, so the baked one leans on its ambient layer (`?akw=` and `?akc=` tune it).
 
 | | Procedural room | Baked room |
 |---|---|---|
-| Download for the whole page (cache off) | 4,279 KB | 4,492 KB (+213 KB) |
-| GPU time per frame at Retina size, the room view | 7.6 ms | 5.3 ms |
-| GPU time per frame at Retina size, riding through it | 54.4 ms | 44–46 ms |
-| Draw calls (with shadow pass) / triangles, the room view | 702 / 531k | 696 / 536k |
+| Download for the whole page (cache off) | 4,294 KB | 4,511 KB (+217 KB) |
+| GPU time per frame at Retina size, the room view | 7.8 ms | 5.2–5.6 ms |
+| GPU time per frame at Retina size, riding through it | 55.5 ms | 45 ms |
+| Draw calls (with shadow pass) / triangles, the room view | 702 / 531k | 698 / 536k |
 
 ### The exterior
 
 ![The mansion's front, procedural and baked](docs/exterior-baked.jpg)
 
-The four facades now have clapboard siding over a brick base, corner pilasters and a cornice on scrolled brackets. Every window has a full casing and a sill on brackets, with a pediment upstairs and a keystone below, and louvred shutters wherever there's room. The portico's six columns are turned and tapered, with capitals, and the front door has a sunburst fanlight and panelled leaves. The mansard has pedimented dormers with gold finials, and the roof that floats up when the house opens has corbelled chimneys and a domed cupola.
+The four facades now have clapboard siding over a brick base, corner pilasters and a cornice on scrolled brackets. Every window has a full casing and a sill on brackets, with a pediment upstairs and a keystone below, and louvred shutters wherever there's room. The portico's six columns are turned and tapered, with capitals, and the front door has a sunburst fanlight and panelled leaves. The mansard has pedimented dormers with gold finials, their arched windows set in casings between pilasters, and the roof that floats up when the house opens has corbelled chimneys and a domed cupola.
 
 The moon throws real shadows from the columns, cornices, shutters and sills. The windows spill warm light onto their casings and the portico, and the gas lamps light the porch.
 

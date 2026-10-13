@@ -547,10 +547,21 @@ export function buildMansard(root) {
     bake(g, dst); root.add(dst);
     slopes.push(makeDissolver(dst, n, c, { name: 'mansard-' + name }));
   };
-  // front with three dormers
-  mk('front', [[[-B, y0, Bz], [B, y0, Bz], [Tx, y1, Tz], [-Tx, y1, Tz]]], new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 16, 5), (g) => {
-    for (const x of [-8, 0, 8]) dormer(g, x, 4.25, ext);
-  });
+  // front with three dormers, each over a hole in the slope (x ± 1.03, from where its face meets the slope up to its
+  // eaves) that opens into a nook in the attic; the slope is in pieces round the holes
+  {
+    const t = (y) => (y - y0) / (y1 - y0), P = (x, y) => [x, y, Bz - (Bz - Tz) * t(y)], X = (y) => B - (B - Tx) * t(y);
+    const hy0 = y0 + (Bz - DORMER_Z) / (Bz - Tz) * (y1 - y0), hy1 = 17.1;
+    const front = [[P(-X(y0), y0), P(X(y0), y0), P(X(hy0), hy0), P(-X(hy0), hy0)], [P(-X(hy1), hy1), P(X(hy1), hy1), P(X(y1), y1), P(-X(y1), y1)]];
+    const edges = [null, ...DORMERS.flatMap((d) => [d - 1.03, d + 1.03]), null];
+    for (let i = 0; i < edges.length; i += 2) {
+      const a = edges[i], b = edges[i + 1];
+      front.push([P(a ?? -X(hy0), hy0), P(b ?? X(hy0), hy0), P(b ?? X(hy1), hy1), P(a ?? -X(hy1), hy1)]);
+    }
+    mk('front', front, new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 16, 5), (g) => {
+      for (const x of DORMERS) dormer(g, x, DORMER_Z, ext);
+    });
+  }
   mk('back', [[[B, y0, -Bz], [-B, y0, -Bz], [-Tx, y1, -Tz], [Tx, y1, -Tz]]], new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 16, -5));
   mk('left', [[[-B, y0, -Bz], [-B, y0, Bz], [-Tx, y1, Tz], [-Tx, y1, -Tz]]], new THREE.Vector3(-1, 0, 0), new THREE.Vector3(-14, 16, 0));
   // right slope with an opening for the ride (z in [1.0, 3.6], up to t=0.52)
@@ -570,19 +581,28 @@ export function buildMansard(root) {
   // a fix for the degenerate front corner piece of the right slope: a small triangle cap
   return slopes;
 }
+const DORMERS = [-8, 0, 8], DORMER_Z = 5.12;
 function dormer(g, x, z, paneOnly = false) {
-  const w = 2.3, y0 = 14.6, h = 2.5;
-  const gw = mesh(new THREE.PlaneGeometry(1.2, 1.7), MAT.windowArch, x, y0 + 1.15, z + 0.02, g);
+  const w = 2.3, ry = 17.1;
+  mesh(new THREE.PlaneGeometry(1.2, 1.7), MAT.windowArch, x, 15.75, z - 0.03, g);            // the pane outside
+  const ng = mesh(new THREE.PlaneGeometry(1.2, 1.7), MAT.nightGlass, x, 15.75, z - 0.09, g);  // and from the nook
+  ng.rotation.y = Math.PI;
   if (paneOnly) return;
-  // Only its top stands proud of the shingles, so it stops just inside them: the rest would stand inside the attic,
-  // across the Doom Buggies' track. zb(y) is that cut at height y; the casing stops where the shingles hide it.
-  const k = 1.95 / 5.4, zb = (y) => 5.186 - k * (y - 14), ry = y0 + h, yc = 14 + (5.186 - z) / k, yt = 16.45;
-  const wedge = new THREE.Shape(); wedge.moveTo(z, yc); wedge.lineTo(z, ry); wedge.lineTo(zb(ry), ry); wedge.closePath();
-  const wg = new THREE.ExtrudeGeometry(wedge, { depth: w, bevelEnabled: false }); wg.rotateY(-Math.PI / 2); wg.translate(x + w / 2, 0, 0);
-  mesh(wg, MAT.siding, 0, 0, 0, g);
-  const op = { u0: x - 0.6, u1: x + 0.6, v1: y0 + 2.0 };
-  boxA(op.u0 - 0.14, op.u0, yt, op.v1, z, z + 0.08, MAT.trim, g);
-  boxA(op.u1, op.u1 + 0.14, yt, op.v1, z, z + 0.08, MAT.trim, g);
+  // it stands out from the slope; its cheeks run back down to it, and zb(y) is just inside the shingles
+  const k = 1.95 / 5.4, zb = (y) => 5.186 - k * (y - 14), yb = 14 + (5.186 - z) / k, hy0 = 14 + (5.25 - z) / k;
+  for (const [u0, u1, v0, v1] of [[-w / 2, -0.6, yb, ry], [0.6, w / 2, yb, ry], [-0.6, 0.6, yb, 14.9], [-0.6, 0.6, 16.6, ry]]) {
+    boxA(x + u0, x + u1, v0, v1, z - 0.12, z, MAT.siding, g);
+  }
+  const cheek = new THREE.Shape(); cheek.moveTo(z, yb); cheek.lineTo(z, ry + 0.12); cheek.lineTo(zb(ry + 0.12), ry + 0.12); cheek.closePath();
+  for (const a of [x - w / 2, x + w / 2 - 0.12]) {
+    const cg = new THREE.ExtrudeGeometry(cheek, { depth: 0.12, bevelEnabled: false }); cg.rotateY(-Math.PI / 2); cg.translate(a + 0.12, 0, 0);
+    mesh(cg, MAT.siding, 0, 0, 0, g);
+  }
+  boxA(x - w / 2 - 0.06, x + w / 2 + 0.06, yb, hy0 + 0.1, z - 0.2, z + 0.06, MAT.trim, g);
+  boxA(x - 0.76, x - 0.6, 14.9, 16.6, z, z + 0.08, MAT.trim, g);
+  boxA(x + 0.6, x + 0.76, 14.9, 16.6, z, z + 0.08, MAT.trim, g);
+  boxA(x - 0.76, x + 0.76, 14.76, 14.9, z, z + 0.14, MAT.trim, g);
+  boxA(x - 0.76, x + 0.76, 16.6, 16.74, z, z + 0.08, MAT.trim, g);
   // gable roof
   const r1 = quadPrism([x - w / 2 - 0.3, ry, z + 0.3], [x, ry + 1.2, z + 0.3], [x, ry + 1.2, zb(ry + 1.2)], [x - w / 2 - 0.3, ry, zb(ry)], 0.12);
   const r2 = quadPrism([x, ry + 1.2, z + 0.3], [x + w / 2 + 0.3, ry, z + 0.3], [x + w / 2 + 0.3, ry, zb(ry)], [x, ry + 1.2, zb(ry + 1.2)], 0.12);
