@@ -244,6 +244,7 @@ export function buildShell(root) {
   const endless = !!W.bakedEndless; // and the baked Endless Hall its own, its floor, the arch and the corridor beyond
   const conserv = !!W.bakedConserv; // and the baked Conservatory its own, its floor and its side window's drapes
   const seance = !!W.bakedSeance; // and the baked Séance Circle its own, its floor and its windows' drapes
+  const attic = !!W.bakedAttic; // and the baked Attic its floorboards
   const ext = !!W.bakedExterior; // and the baked exterior its own siding, trim, portico and doors (js/baked.js)
   const siding = (L) => (ext ? [] : [{ u0: 0, u1: L, v0: F1, v1: AT, mat: MAT.siding }]);
   const ROOM = { lib: [0, 9.33], foy: [9.33, 18.67], con: [18.67, 28] };
@@ -435,7 +436,7 @@ export function buildShell(root) {
   const slot = { u0: -13.4, u1: -9.0, v0: -4.6, v1: -2.0 };
   for (const r of subtractRects(-13.6, 13.6, -4.6, 4.6, [slot])) {
     boxA(r.u0, r.u1, 13.6, 13.92, r.v0, r.v1, MAT.plaster, S);
-    boxA(r.u0, r.u1, 13.92, AT, r.v0, r.v1, MAT.wood, S);
+    if (!attic) boxA(r.u0, r.u1, 13.92, AT, r.v0, r.v1, MAT.wood, S);
   }
   // sill plates over the wall tops inside the attic
   boxA(-14.05, 14.05, 13.98, 14.07, -5.06, -4.55, MAT.woodDark, S);
@@ -528,6 +529,7 @@ function buildEndlessHall(S) {
 export function buildMansard(root) {
   const y0 = D.AT, y1 = D.TOP;
   const ext = !!W.bakedExterior; // the baked exterior has the shingled slopes and the dormers (their panes stay)
+  const attic = !!W.bakedAttic; // and the baked Attic the slopes' lining, with its rafters (js/baked.js)
   const B = 14.25, Bz = 5.25, Tx = 12.3, Tz = 3.3;
   const slopes = [];
   const mk = (name, quads, n, c, extras) => {
@@ -538,7 +540,7 @@ export function buildMansard(root) {
       const A = new THREE.Vector3(...q[0]), Bv = new THREE.Vector3(...q[1]), Dv = new THREE.Vector3(...q[3]);
       const nn = new THREE.Vector3().subVectors(Bv, A).cross(new THREE.Vector3().subVectors(Dv, A)).normalize().multiplyScalar(-0.12);
       const qi = q.map((p) => new THREE.Vector3(...p).add(nn).toArray());
-      g.add(new THREE.Mesh(quadPrism(qi[0], qi[1], qi[2], qi[3], 0.1), MAT.woodDark));
+      if (!attic) g.add(new THREE.Mesh(quadPrism(qi[0], qi[1], qi[2], qi[3], 0.1), MAT.woodDark));
     }
     if (extras) extras(g);
     const dst = new THREE.Group(); dst.name = 'mansard-' + name;
