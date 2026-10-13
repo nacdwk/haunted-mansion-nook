@@ -88,10 +88,10 @@ Apart from the baked sets (the Grand Hall, the outside of the mansion and the gr
 | `js/audio.js` | The synthesizer, the score and sound effects |
 | `js/post.js` | Bloom, tilt-shift miniature blur and colour grade |
 | `js/ui.js` | Picking, hover labels, room panels, the dock, captions and the ride overlay |
-| `js/baked.js` | Loads the Blender-built Grand Hall, Endless Hall, Conservatory, Séance Circle, Attic, basement, exterior and grounds and draws them with their baked light, and loads the sculpted figures |
+| `js/baked.js` | Loads the Blender-built Library, Grand Hall, Endless Hall, Conservatory, Séance Circle, Attic, basement, exterior and grounds and draws them with their baked light, and loads the sculpted figures |
 | `js/art.js` | Swaps in the official Stretching Room portraits and wallpaper and the Endless Hall wallpaper from `assets/art/`, when those files are present |
 | `tools/prepare_art.py` | Crops the portraits, cuts a seamless tile of the Endless Hall wallpaper and redraws the Stretching Room's stripes from the source images into `assets/art/` |
-| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`), the Endless Hall (`endless_hall.py`), the Conservatory (`conservatory.py`), the Séance Circle (`seance.py`), the Attic (`attic.py`), the basement (`basement.py`), the exterior and tower (`exterior.py`) and the grounds (`grounds.py`) and the solid figures (`figures.py`), their shared helpers (`kit.py`, and `trees.py` for the dead trees), the house's lights shared between the last two (`exterior_lights.json`), and `bake.sh` to rebuild `assets/` |
+| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`), the Library (`library.py`), the Endless Hall (`endless_hall.py`), the Conservatory (`conservatory.py`), the Séance Circle (`seance.py`), the Attic (`attic.py`), the basement (`basement.py`), the exterior and tower (`exterior.py`) and the grounds (`grounds.py`) and the solid figures (`figures.py`), their shared helpers (`kit.py`, and `trees.py` for the dead trees), the house's lights shared between the last two (`exterior_lights.json`), and `bake.sh` to rebuild `assets/` |
 
 A few techniques keep it running at 60 fps:
 
@@ -104,13 +104,13 @@ A few techniques keep it running at 60 fps:
 
 ## Baked sets (experiment)
 
-Eight parts of the nook are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall, the Endless Hall, the Conservatory, the Séance Circle, the Attic, the basement, the outside of the mansion with its stretching tower, and the grounds around it. The solid figures are sculpted there too: the caretaker and his dog, the marble busts, the raven, the coffin's bony hands and Madame Leota (see below), and so is the ghost dog's shape. Everything else, including the other ghosts and the other things that move, is still procedural.
+Nine parts of the nook are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall, the Library, the Endless Hall, the Conservatory, the Séance Circle, the Attic, the basement, the outside of the mansion with its stretching tower, and the grounds around it. The solid figures are sculpted there too: the caretaker and his dog, the marble busts, the raven, the coffin's bony hands and Madame Leota (see below), and so is the ghost dog's shape. Everything else, including the other ghosts and the other things that move, is still procedural.
 
 - A Python script in `blender/` builds each set (`grand_hall.py`, `exterior.py` and `grounds.py`, with shared helpers in `kit.py` and `trees.py`) and removes faces nobody can see. It then bakes two lightmaps, warm (flames, lamps and lit windows) and cool (moonlight, sky and fill light), and exports Draco-compressed geometry. Thin ironwork is exported without a lightmap and lit live by the site, though it still shades the baked surfaces around it.
 - `js/baked.js` draws the sets with one cheap shader. It reads the lightmaps, maps the site's painted textures onto the surfaces and adds the lantern.
 - Because the two lightmaps are separate, the sets still dim for the lantern, flicker with the flames and flash with lightning. Their walls melt away with the facades, and the tower still stretches.
-- Rebuild a set with `blender/bake.sh grandhall`, `blender/bake.sh endless`, `blender/bake.sh conserv`, `blender/bake.sh seance`, `blender/bake.sh attic`, `blender/bake.sh basement`, `blender/bake.sh exterior` or `blender/bake.sh grounds` (after the exterior, whose house and lights it uses), and the figures with `blender/bake.sh figures`. Each takes under a minute on an M4 GPU and writes the web-ready files to `assets/`.
-- To compare, add `?baked=0` to the URL for the all-procedural nook, or `?endless=0`, `?conserv=0`, `?seance=0`, `?attic=0`, `?basement=0`, `?exterior=0` or `?grounds=0` for the procedural version of just that set, or `?figures=0` for the old figures and ghosts. If a baked set fails to load, the site builds the procedural version in its place.
+- Rebuild a set with `blender/bake.sh grandhall`, `blender/bake.sh library`, `blender/bake.sh endless`, `blender/bake.sh conserv`, `blender/bake.sh seance`, `blender/bake.sh attic`, `blender/bake.sh basement`, `blender/bake.sh exterior` or `blender/bake.sh grounds` (after the exterior, whose house and lights it uses), and the figures with `blender/bake.sh figures`. Each takes under a minute on an M4 GPU and writes the web-ready files to `assets/`.
+- To compare, add `?baked=0` to the URL for the all-procedural nook, or `?library=0`, `?endless=0`, `?conserv=0`, `?seance=0`, `?attic=0`, `?basement=0`, `?exterior=0` or `?grounds=0` for the procedural version of just that set, or `?figures=0` for the old figures and ghosts. If a baked set fails to load, the site builds the procedural version in its place.
 
 ### The Grand Hall
 
@@ -129,6 +129,26 @@ Measured in headless Chrome on an M4 MacBook, against the same views in the proc
 | Draw calls (with shadow pass) / triangles | 659 / 248k | 668 / 274k |
 
 The baked hall has more geometry but costs less to draw where it fills the screen, because its surfaces don't add up a dozen point lights for every pixel. The price is download size.
+
+### The Library
+
+![The Library from outside, from the ride as it comes up through the floor, and its shelves: procedural and baked](docs/library-baked.jpg)
+
+The ground floor's left-hand room, the first the Doom Buggies reach after the tunnel, is a set too (`blender/library.py`).
+- **The shelves.** They run wall to wall along the back in six bays, filled with books in their leathers, some with gilt bands, some lying down. The busts still stand on the crown, and the sliding ladder still runs on its rail.
+- **The chimneypiece.** It's marble, with pilasters, a keystone and a mantel, over a sooty firebox with andirons and logs and a brass fender. The site's fire burns in it.
+- **The room.** The walls have wainscot, the room's damask, a picture rail and a cornice, and the ceiling is coffered, with gilt bosses where its beams cross. The wingback, a turned reading table with books and a candelabra, the marble pedestals and the red rug are part of the set.
+- **The railing.** The brass railing round the hole the ride comes up through used to cross the buggies' way out. It now leaves that side open.
+- **The light.** The fire and the candles are baked, the fire flickering harder than a candle does, and moonlight comes through the front windows.
+- **Still procedural.** Everything that moves stays the site's: the fire's flames, the busts, the ladder, the flying books, the reader, the globe and the ageing portrait. So do the front wall and the partition's door casing.
+- **The same random numbers.** The shelves' books and the fire drew from the house's shared random sequence. The shelves are still built, into a group that's thrown away, and their books still say where a pulled book flies from. The fireplace draws only its fire (`onlyFire` in `js/props.js`).
+
+| | Procedural room | Baked room |
+|---|---|---|
+| Download for the whole page (cache off) | 4,668 KB | 4,973 KB (+306 KB) |
+| GPU time per frame at Retina size, the room view | 12.8 ms | 10.0–11.7 ms |
+| GPU time per frame at Retina size, riding through it | 65.1 ms | 47–48 ms |
+| Draw calls (with shadow pass) / triangles, the room view | 573 / 467k | 569 / 474k |
 
 ### The Endless Hall
 

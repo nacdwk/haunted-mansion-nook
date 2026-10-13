@@ -254,6 +254,7 @@ export function buildShell(root) {
   const conserv = !!W.bakedConserv; // and the baked Conservatory its own, its floor and its side window's drapes
   const seance = !!W.bakedSeance; // and the baked Séance Circle its own, its floor and its windows' drapes
   const attic = !!W.bakedAttic; // and the baked Attic its floorboards
+  const library = !!W.bakedLibrary; // and the baked Library its own, its floor and the railing round the ride's hole
   const ext = !!W.bakedExterior; // and the baked exterior its own siding, trim, portico and doors (js/baked.js)
   const siding = (L) => (ext ? [] : [{ u0: 0, u1: L, v0: F1, v1: AT, mat: MAT.siding }]);
   const ROOM = { lib: [0, 9.33], foy: [9.33, 18.67], con: [18.67, 28] };
@@ -344,7 +345,7 @@ export function buildShell(root) {
       inner: [
         { u0: 0, u1: 9.33, v0: F1, v1: 7.0, mat: MAT.papConserv, wainscot: 1.6, bare: conserv },
         { u0: 9.33, u1: 18.67, v0: F1, v1: 7.0, mat: MAT.papEyes, wainscot: 2.0, wmat: MAT.wainscotDark, bare: endless },
-        { u0: 18.67, u1: 28, v0: F1, v1: 7.0, mat: MAT.papLibrary, wainscot: 2.0 },
+        { u0: 18.67, u1: 28, v0: F1, v1: 7.0, mat: MAT.papLibrary, wainscot: 2.0, bare: library },
         { u0: 0, u1: 9.33, v0: F2, v1: 13.6, mat: MAT.papSeance, wainscot: 1.8, bare: seance },
         { u0: 9.33, u1: 28, v0: F2, v1: 13.6, mat: MAT.papBall, wainscot: 2.2, crown: MAT.gold, bare },
       ],
@@ -377,7 +378,7 @@ export function buildShell(root) {
       openings: op,
       outer: siding(10),
       inner: [
-        { u0: 0, u1: 10, v0: F1, v1: 7.0, mat: MAT.papLibrary, wainscot: 2.0 },
+        { u0: 0, u1: 10, v0: F1, v1: 7.0, mat: MAT.papLibrary, wainscot: 2.0, bare: library },
         { u0: 0, u1: 10, v0: F2, v1: 13.6, mat: MAT.papBall, wainscot: 2.2, crown: MAT.gold, bare },
       ],
     });
@@ -430,11 +431,13 @@ export function buildShell(root) {
   boxA(-14.15, 14.15, 0, 0.42, -5.15, 5.15, MAT.brick, S);
   // F1 floors
   const libHole = { u0: -13.6, u1: -10.9, v0: 2.0, v1: 4.6 };
-  for (const r of subtractRects(-13.6, -4.67, -4.6, 4.6, [libHole])) boxA(r.u0, r.u1, 0.42, F1, r.v0, r.v1, MAT.wood, S);
+  if (!library) for (const r of subtractRects(-13.6, -4.67, -4.6, 4.6, [libHole])) boxA(r.u0, r.u1, 0.42, F1, r.v0, r.v1, MAT.wood, S);
   boxA(libHole.u0, libHole.u1, 0.05, 0.1, libHole.v0, libHole.v1, MAT.void, S);
-  for (const [x, z] of [[-10.9, 2.0], [-10.9, 4.6], [-13.4, 2.0]]) { cyl(0.07, 0.07, 1.0, MAT.gold, x, F1 + 0.5, z, S, 8); sphere(0.11, MAT.gold, x, F1 + 1.02, z, S, 8, 6); }
-  boxA(-13.4, -10.9, F1 + 0.95, F1 + 1.02, 1.97, 2.03, MAT.gold, S);
-  boxA(-10.93, -10.87, F1 + 0.95, F1 + 1.02, 2.0, 4.6, MAT.gold, S);
+  if (!library) {
+    for (const [x, z] of [[-10.9, 2.0], [-10.9, 4.6], [-13.4, 2.0]]) { cyl(0.07, 0.07, 1.0, MAT.gold, x, F1 + 0.5, z, S, 8); sphere(0.11, MAT.gold, x, F1 + 1.02, z, S, 8, 6); }
+    boxA(-13.4, -10.9, F1 + 0.95, F1 + 1.02, 1.97, 2.03, MAT.gold, S);
+    boxA(-10.93, -10.87, F1 + 0.95, F1 + 1.02, 2.0, 4.6, MAT.gold, S);
+  }
   if (!endless) boxA(-4.67, 4.67, 0.42, F1, -4.6, 4.6, MAT.checker, S);
   if (!conserv) boxA(4.67, 13.6, 0.42, F1, -4.6, 4.6, MAT.checkerGreen, S);
   // F2 slab (ceiling of F1, floor of F2)
@@ -476,7 +479,7 @@ export function buildShell(root) {
     return g;
   };
   const doorF1 = [{ u0: -0.1, u1: 2.3, v0: F1, v1: 4.4 }];
-  part(-4.67, F1, 7.0, doorF1, MAT.papLibrary, MAT.papEyes, 2.0, { h: 2.0, mat: MAT.wainscotDark }, false, endless);
+  part(-4.67, F1, 7.0, doorF1, MAT.papLibrary, MAT.papEyes, 2.0, { h: 2.0, mat: MAT.wainscotDark }, library, endless);
   part(4.67, F1, 7.0, doorF1, MAT.papEyes, MAT.papConserv, 2.0, { h: 1.6, mat: MAT.wainscot }, endless, conserv);
   part(4.67, F2, 13.6, [{ u0: 6.9, u1: 9.3, v0: F2, v1: 11.0 }], MAT.papBall, MAT.papSeance, 2.2, { h: 1.8, mat: MAT.wainscot }, bare, seance);
   // door casings for the track openings in partitions

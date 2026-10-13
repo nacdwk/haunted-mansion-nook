@@ -63,20 +63,26 @@ function library(root) {
   });
   const S = new THREE.Group(), G = new THREE.Group(); root.add(G);
   const y0 = D.F1;
+  // The baked room (blender/library.py) brings the shelves and their books, the chimneypiece, the candles, the rug, the
+  // wingback, the table and the pedestals. The shelves still roll the house's dice, into a group that's thrown away,
+  // and their books still say where a pulled book flies from; the fireplace keeps only its fire.
+  const BK = !!W.bakedLibrary, SB = BK ? new THREE.Group() : S;
   // shelves along the back wall
-  const shelf = P.bookshelf(S, -13.25, -5.3, y0, 6.55, -4.58, { depth: 0.55, shelves: 6, facing: 1 });
-  boxA(-13.3, -5.25, 6.28, 6.33, -3.93, -3.88, MAT.brass, S); // ladder rail
+  const shelf = P.bookshelf(SB, -13.25, -5.3, y0, 6.55, -4.58, { depth: 0.55, shelves: 6, facing: 1 });
+  if (!BK) boxA(-13.3, -5.25, 6.28, 6.33, -3.93, -3.88, MAT.brass, S); // ladder rail
   // fireplace on the left wall, aging portrait above
-  P.fireplace(S, -13.58, y0, 0.2, Math.PI / 2, { w: 2.6, h: 2.3, stone: MAT.marble });
+  P.fireplace(BK ? G : S, -13.58, y0, 0.2, Math.PI / 2, { w: 2.6, h: 2.3, stone: MAT.marble, onlyFire: BK });
   const ageing = P.framed(G, T.aging[0], 1.45, 1.8, { ei: 0.25 });
   ageing.position.set(-13.48, 4.75, 0.2); ageing.rotation.y = Math.PI / 2;
-  P.candelabra(S, -13.25, y0 + 2.44, -0.75, { arms: 1, s: 0.8 });
-  P.candelabra(S, -13.25, y0 + 2.44, 1.15, { arms: 1, s: 0.8 });
-  // rug, chair, tables
-  P.rugPlane(S, -8.8, y0, 0.2, 4.6, 3.1, T.rugRed);
-  const chairG = P.wingback(S, -10.4, y0, 0.3, -0.85, { fabric: MAT.velvetRed });
-  P.table(S, -7.0, y0, 1.0, 1.2, 0.8, { h: 0.85, wood: MAT.mahogany });
-  P.candelabra(S, -7.0, y0 + 0.85, 1.0, { arms: 3, s: 0.6 });
+  if (!BK) {
+    P.candelabra(S, -13.25, y0 + 2.44, -0.75, { arms: 1, s: 0.8 });
+    P.candelabra(S, -13.25, y0 + 2.44, 1.15, { arms: 1, s: 0.8 });
+    // rug, chair, tables
+    P.rugPlane(S, -8.8, y0, 0.2, 4.6, 3.1, T.rugRed);
+    P.wingback(S, -10.4, y0, 0.3, -0.85, { fabric: MAT.velvetRed });
+    P.table(S, -7.0, y0, 1.0, 1.2, 0.8, { h: 0.85, wood: MAT.mahogany });
+    P.candelabra(S, -7.0, y0 + 0.85, 1.0, { arms: 3, s: 0.6 });
+  }
   // globe on a stand
   const globeG = new THREE.Group(); globeG.position.set(-6.0, y0, -2.4); G.add(globeG);
   for (const a of [0, 2.1, 4.2]) { const l = cyl(0.03, 0.03, 0.9, MAT.walnut, Math.cos(a) * 0.18, 0.45, Math.sin(a) * 0.18, globeG, 5); l.rotation.set(Math.sin(a) * 0.2, 0, -Math.cos(a) * 0.2); }
@@ -89,8 +95,10 @@ function library(root) {
   globe.userData.keep = true;
   onUpdate((t, dt) => { globe.rotation.y += dt * 0.3; });
   // busts that watch you
-  P.pedestal(S, -12.9, y0, -2.3, 1.15);
-  P.pedestal(S, -8.2, y0, -3.45, 1.0);
+  if (!BK) {
+    P.pedestal(S, -12.9, y0, -2.3, 1.15);
+    P.pedestal(S, -8.2, y0, -3.45, 1.0);
+  }
   const busts = [
     P.bust(G, -12.9, y0 + 1.15, -2.3, { s: 0.9, ry: 1.0, hat: 'laurel' }),
     P.bust(G, -8.2, y0 + 1.0, -3.45, { s: 0.85, ry: 0.2, hat: 'curls' }),
@@ -174,7 +182,7 @@ function library(root) {
     addBook(new THREE.Vector3(b.x, b.y, -4.0));
     sfx('flutter');
   });
-  hotspot(shelf.im, 'library', 'Pull a book from the shelf', fly);
+  hotspot(BK ? proxy(8.73, 6.0, 0.6, -9.24, y0 + 3.0, -4.3, G) : shelf.im, 'library', 'Pull a book from the shelf', fly);
   for (const b of busts) hotspot(b.g, 'library', 'They are watching you', () => { sfx('whisper'); say('“We have read about you.”', { who: 'the busts' }); });
   hotspot(reader, 'library', 'Disturb the reader', () => { sfx('shush'); say('“Shhh.”', { who: 'the reader' }); for (let i = 0; i < 3; i++) addBook(new THREE.Vector3(-10.9, 2.2, 0.8)); });
   room.actions.push({ label: 'Make the busts look away', fn: () => { W.lookAt = new THREE.Vector3(-30, 3, -30); setTimeout(() => { W.lookAt = null; }, 2600); sfx('whisper'); } });

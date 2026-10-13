@@ -278,16 +278,19 @@ export function rugPlane(parent, x, y, z, w, d, map, ry = 0) {
   r.receiveShadow = true;
   return r;
 }
-export function fireplace(parent, x, y, z, ry, { w = 2.5, h = 2.3, d = 0.6, stone = MAT.marble } = {}) {
+// onlyFire draws just the flames (a baked set brings the rest), drawing the same random numbers
+export function fireplace(parent, x, y, z, ry, { w = 2.5, h = 2.3, d = 0.6, stone = MAT.marble, onlyFire = false } = {}) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.userData.keepGroup = true; parent.add(g);
-  boxA(-w / 2, -w / 2 + 0.42, 0, h, 0, d, stone, g);
-  boxA(w / 2 - 0.42, w / 2, 0, h, 0, d, stone, g);
-  boxA(-w / 2, w / 2, h - 0.5, h, 0, d, stone, g);
-  boxA(-w / 2 - 0.2, w / 2 + 0.2, h, h + 0.14, -0.05, d + 0.16, stone, g);
-  boxA(-w / 2 + 0.42, w / 2 - 0.42, 0, h - 0.5, 0, 0.08, MAT.void, g);
-  boxA(-w / 2 - 0.1, w / 2 + 0.1, -0.01, 0.06, 0, d + 0.4, MAT.stoneDark, g);
-  // logs + fire
-  for (const [lx, ry2] of [[-0.25, 0.2], [0.2, -0.3]]) { const l = cyl(0.09, 0.09, 0.9, MAT.bark, lx * 0.6, 0.15, 0.3, g, 6); l.rotation.z = Math.PI / 2; l.rotation.y = ry2; }
+  if (!onlyFire) {
+    boxA(-w / 2, -w / 2 + 0.42, 0, h, 0, d, stone, g);
+    boxA(w / 2 - 0.42, w / 2, 0, h, 0, d, stone, g);
+    boxA(-w / 2, w / 2, h - 0.5, h, 0, d, stone, g);
+    boxA(-w / 2 - 0.2, w / 2 + 0.2, h, h + 0.14, -0.05, d + 0.16, stone, g);
+    boxA(-w / 2 + 0.42, w / 2 - 0.42, 0, h - 0.5, 0, 0.08, MAT.void, g);
+    boxA(-w / 2 - 0.1, w / 2 + 0.1, -0.01, 0.06, 0, d + 0.4, MAT.stoneDark, g);
+    // logs
+    for (const [lx, ry2] of [[-0.25, 0.2], [0.2, -0.3]]) { const l = cyl(0.09, 0.09, 0.9, MAT.bark, lx * 0.6, 0.15, 0.3, g, 6); l.rotation.z = Math.PI / 2; l.rotation.y = ry2; }
+  }
   const fires = [];
   for (let i = 0; i < 5; i++) {
     const f = new THREE.Mesh(new THREE.ConeGeometry(0.13 + rand(0, 0.08), 0.5 + rand(0, 0.3), 6), glow(i % 2 ? '#ff7a1a' : '#ffc04a', 4));

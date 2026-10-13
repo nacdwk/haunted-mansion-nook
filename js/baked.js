@@ -27,6 +27,7 @@ const CON_KW = num('ckw', '1.0'), CON_KC = num('ckc', '1.2');      // its green 
 const SEA_KW = num('skw', '0.7'), SEA_KC = num('skc', '1.4');      // the crystal ball lights it live
 const ATT_KW = num('akw', '1.0'), ATT_KC = num('akc', '6.0');     // the house's ambient light fills the Attic, as it did
 const BAS_KW = num('bkw', '2.0'), BAS_KC = num('bkc', '4.0');
+const LIB_KW = num('lkw', '1.25'), LIB_KC = num('lkc', '1.0');     // the fire leads, as it did
 
 let gltf = null;
 function loader() {
@@ -149,6 +150,18 @@ const BASEMENT_LOOK = {
 // the lanterns over the track and the sconces between the portraits, which polished floors and gilt pick up as glints
 const BASEMENT_GLINTS = [[-15.0, -1.8, 8.6, 2], [-6.0, -1.8, 8.6, 2], [3.0, -1.8, 8.6, 2], [12.6, -1.8, 8.6, 2],
   [-10.5, -2.1, 6.38, 1], [-4.7, -2.1, 6.38, 1], [1.1, -2.1, 6.38, 1], [6.9, -2.1, 6.38, 1]];
+// the Library: its green damask and wainscot, a plank floor, polished mahogany and marble, the red rug laid as the
+// site had it, and the books in their leathers
+const LIBRARY_LOOK = {
+  wallpaper: { map: 'papLibrary', uv: 2.4 }, wainscot: { map: 'wainscot', uv: 2.4, gloss: 0.15 }, walnut: { color: '#2a170d', gloss: 0.2 },
+  gilt: { color: '#c9a24a', metal: 1 }, brass: { color: '#a8844e', metal: 1 }, iron: { color: '#17131d', metal: 0.5 },
+  plaster: { map: 'plaster', uv: 3 }, ceiling: { map: 'plaster', uv: 6, color: '#a8805c' }, floor: { map: 'wood', uv: 5, gloss: 0.2 },
+  rug: { map: 'rugRed', rug: [-11.1, 1.75, 4.6, 3.1] },
+  marble: { color: '#bdb5c4', gloss: 0.35, vein: 1 }, stone_dark: { map: 'stoneDark', uv: 3.5 }, soot: { color: '#1a1414' },
+  bark: { color: '#2b2129' }, wax: { color: '#efe6cf' }, mahogany: { color: '#4a1e14', gloss: 0.3 }, velvet: { color: '#6a1a22' },
+  book_red: { color: '#5a1a22' }, book_green: { color: '#1f3a2a' }, book_blue: { color: '#2a2346' }, book_brown: { color: '#6a4a1a' },
+  book_plum: { color: '#3e2a52' },
+};
 // the Grand Hall's brightest flames, which polished surfaces pick up as glints: position and strength
 const HALL_GLINTS = [[-5.0, 12.5, 1.6, 7], [-10.3, 7.9, -4.1, 5], [-6.4, 9.1, -0.45, 2.2], [-2.8, 9.1, -0.45, 2.2],
   [4.17, 10.6, 0.0, 1.4], [4.17, 10.6, 3.0, 1.4], [-12.4, 11.2, -4.28, 1.4], [-4.6, 9.3, -0.55, 1.2]];
@@ -504,6 +517,29 @@ export function addBakedBasement(root) {
     }
   });
   W.bakedBasementGroup = G;
+  return G;
+}
+
+// ---------------------------------------------------------------- the Library
+// The back and left walls' dressing melts with those facades; the shelves, the chimneypiece and the furniture stay put.
+// The fire and the candles are baked, the fire flickering harder than a candle does.
+export function addBakedLibrary(root) {
+  const H = W.bakedLibrary;
+  const shared = sharedUniforms(H, { hot: [-12.9, 2.0, 0.2], hotCol: [2.4, 1.3, 0.6], envLow: [0.04, 0.025, 0.02], envHigh: [0.35, 0.24, 0.16],
+    glints: [[-12.9, 1.4, 0.2, 4], [-13.25, 4.1, -0.75, 1], [-13.25, 4.1, 1.15, 1], [-7.0, 2.3, 1.0, 1.5]] });
+  const G = new THREE.Group(); G.name = 'bakedLibrary'; G.userData.noCompact = true;
+  root.add(G);
+  attach(H, shared, LIBRARY_LOOK, (name) => ({ Lib_back: { dissolver: 'back' }, Lib_left: { dissolver: 'left' } }[name] || (name.startsWith('Lib_') ? { parent: G } : null)));
+  for (const f of H.flames) P.flame(G, f.p.x, f.p.y, f.p.z, f.s);
+  onUpdate((t) => {
+    const room = W.rooms.library;
+    const mul = (room ? room.lightMul : 1) * W.lightMul;
+    const flick = 0.82 + 0.18 * (0.6 * noise1(t * 9 + 1.7) + 0.4 * (0.5 + 0.5 * Math.sin(t * 13.1 + 0.6)));
+    const storm = W.fx?.stormK || 0, flash = W.U.uFlash.value;
+    shared.uWarmK.value.setScalar(H.meta.warm.scale * LIB_KW * flick * mul);
+    shared.uCoolK.value.setScalar(H.meta.cool.scale * LIB_KC * mul * (1 - storm * 0.25) * (1 + flash * 2.5));
+  });
+  W.bakedLibraryGroup = G;
   return G;
 }
 
