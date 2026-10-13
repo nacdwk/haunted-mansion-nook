@@ -242,6 +242,7 @@ export function buildShell(root) {
   const facades = {};
   const bare = !!W.bakedHall; // the baked Grand Hall brings its own wall dressing
   const endless = !!W.bakedEndless; // and the baked Endless Hall its own, its floor, the arch and the corridor beyond
+  const conserv = !!W.bakedConserv; // and the baked Conservatory its own, its floor and its side window's drapes
   const ext = !!W.bakedExterior; // and the baked exterior its own siding, trim, portico and doors (js/baked.js)
   const siding = (L) => (ext ? [] : [{ u0: 0, u1: L, v0: F1, v1: AT, mat: MAT.siding }]);
   const ROOM = { lib: [0, 9.33], foy: [9.33, 18.67], con: [18.67, 28] };
@@ -330,7 +331,7 @@ export function buildShell(root) {
       openings: op,
       outer: siding(28),
       inner: [
-        { u0: 0, u1: 9.33, v0: F1, v1: 7.0, mat: MAT.papConserv, wainscot: 1.6 },
+        { u0: 0, u1: 9.33, v0: F1, v1: 7.0, mat: MAT.papConserv, wainscot: 1.6, bare: conserv },
         { u0: 9.33, u1: 18.67, v0: F1, v1: 7.0, mat: MAT.papEyes, wainscot: 2.0, wmat: MAT.wainscotDark, bare: endless },
         { u0: 18.67, u1: 28, v0: F1, v1: 7.0, mat: MAT.papLibrary, wainscot: 2.0 },
         { u0: 0, u1: 9.33, v0: F2, v1: 13.6, mat: MAT.papSeance, wainscot: 1.8 },
@@ -389,13 +390,13 @@ export function buildShell(root) {
       openings: op,
       outer: siding(10),
       inner: [
-        { u0: 0, u1: 10, v0: F1, v1: 7.0, mat: MAT.papConserv, wainscot: 1.6 },
+        { u0: 0, u1: 10, v0: F1, v1: 7.0, mat: MAT.papConserv, wainscot: 1.6, bare: conserv },
         { u0: 0, u1: 10, v0: F2, v1: 13.6, mat: MAT.papSeance, wainscot: 1.8 },
       ],
     });
     G.add(w);
     if (!ext) exteriorTrim(G, 10);
-    dressWindow(G, op[1], { curtain: MAT.curtainGreen, outside: !ext });
+    dressWindow(G, op[1], { curtain: MAT.curtainGreen, outside: !ext, trimInside: !conserv });
     dressWindow(G, op[3], { curtain: MAT.curtainPurple, glowMat: MAT.windowFig, outside: !ext });
     if (!ext) for (const o of [op[0], op[2]]) { // archways for the ride
       boxA(o.u0 - 0.2, o.u0, o.v0, o.v1 + 0.2, 0, 0.14, MAT.trim, G);
@@ -424,7 +425,7 @@ export function buildShell(root) {
   boxA(-13.4, -10.9, F1 + 0.95, F1 + 1.02, 1.97, 2.03, MAT.gold, S);
   boxA(-10.93, -10.87, F1 + 0.95, F1 + 1.02, 2.0, 4.6, MAT.gold, S);
   if (!endless) boxA(-4.67, 4.67, 0.42, F1, -4.6, 4.6, MAT.checker, S);
-  boxA(4.67, 13.6, 0.42, F1, -4.6, 4.6, MAT.checkerGreen, S);
+  if (!conserv) boxA(4.67, 13.6, 0.42, F1, -4.6, 4.6, MAT.checkerGreen, S);
   // F2 slab (ceiling of F1, floor of F2)
   boxA(-13.6, 13.6, 7.0, 7.32, -4.6, 4.6, MAT.plaster, S);
   boxA(-13.6, 4.67, 7.32, F2, -4.6, 4.6, MAT.parquet, S);
@@ -465,7 +466,7 @@ export function buildShell(root) {
   };
   const doorF1 = [{ u0: -0.1, u1: 2.3, v0: F1, v1: 4.4 }];
   part(-4.67, F1, 7.0, doorF1, MAT.papLibrary, MAT.papEyes, 2.0, { h: 2.0, mat: MAT.wainscotDark }, false, endless);
-  part(4.67, F1, 7.0, doorF1, MAT.papEyes, MAT.papConserv, 2.0, { h: 1.6, mat: MAT.wainscot }, endless);
+  part(4.67, F1, 7.0, doorF1, MAT.papEyes, MAT.papConserv, 2.0, { h: 1.6, mat: MAT.wainscot }, endless, conserv);
   part(4.67, F2, 13.6, [{ u0: 6.9, u1: 9.3, v0: F2, v1: 11.0 }], MAT.papBall, MAT.papSeance, 2.2, { h: 1.8, mat: MAT.wainscot }, bare);
   // door casings for the track openings in partitions
   for (const x of [-4.67, 4.67]) {

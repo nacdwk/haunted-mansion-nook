@@ -23,16 +23,17 @@ async function boot() {
   W.classicFigures = query.get('figures') === '0';   // the older, simpler ghosts and caretaker, for comparison
   const timeout = (ms) => new Promise((_, no) => setTimeout(() => no(new Error('timed out')), ms));
   // the Blender-built sets download while everything else is set up. ?baked=0 shows the procedural house, and
-  // ?exterior=0, ?grounds=0 or ?endless=0 the procedural version of just that set; it is also the fallback for any set that fails
+  // ?exterior=0, ?grounds=0, ?endless=0 or ?conserv=0 the procedural version of just that set; it is also the fallback for any set that fails
   const set = (m, name) => Promise.race([m.loadBakedSet(name), timeout(25000)])
     .catch((e) => { console.warn(`Baked ${name} unavailable, building the procedural one instead:`, e); return null; });
   const bakedSets = query.get('baked') === '0' ? null
     : import('./baked.js').then(async (m) => {
-      const [hall, exterior, grounds, endless, figures] = await Promise.all([set(m, 'grandhall'), query.get('exterior') === '0' ? null : set(m, 'exterior'),
+      const [hall, exterior, grounds, endless, conserv, figures] = await Promise.all([set(m, 'grandhall'), query.get('exterior') === '0' ? null : set(m, 'exterior'),
         query.get('grounds') === '0' ? null : set(m, 'grounds'), query.get('endless') === '0' ? null : set(m, 'endless'),
+        query.get('conserv') === '0' ? null : set(m, 'conserv'),
         W.classicFigures ? null : Promise.race([m.loadFigures(), timeout(25000)]).catch((e) => { console.warn('Figures unavailable:', e); return null; })]);
       m.releaseLoaders();
-      return { m, hall, exterior, grounds, endless, figures };
+      return { m, hall, exterior, grounds, endless, conserv, figures };
     }).catch((e) => { console.warn('Baked sets unavailable:', e); return null; });
   // the official portraits and wallpaper (js/art.js); ?art=0 shows the house's own painted versions
   const officialArt = query.get('art') === '0' ? null
@@ -110,6 +111,7 @@ async function boot() {
   W.bakedExterior = baked?.exterior || null;
   W.bakedGrounds = baked?.grounds || null;
   W.bakedEndless = baked?.endless || null;
+  W.bakedConserv = baked?.conserv || null;
   W.figures = baked?.figures || null;
   const world = new THREE.Group(); world.name = 'world';
   scene.add(world);
@@ -125,6 +127,7 @@ async function boot() {
   buildRooms(world);
   if (W.bakedHall) baked.m.addBakedHall(world);
   if (W.bakedEndless) baked.m.addBakedEndless(world);
+  if (W.bakedConserv) baked.m.addBakedConservatory(world);
   status('Digging the graveyard…');
   await frame();
   buildOutside(world);

@@ -260,8 +260,12 @@ function conservatory(root) {
   });
   const S = new THREE.Group(), G = new THREE.Group(); root.add(G);
   const y0 = D.F1;
+  // the baked conservatory (blender/conservatory.py) brings its own bier, candle stands, wreaths, plants, plant stand and
+  // vines. Those that roll the house's dice are still built, into a group that's thrown away, so everything after
+  // them comes out the same.
+  const BK = !!W.bakedConserv, junk = new THREE.Group(), SB = BK ? junk : S;
   // the bier
-  P.table(S, 8.6, y0, -1.1, 2.7, 1.1, { h: 0.85, wood: MAT.walnut, cloth: MAT.velvet });
+  if (!BK) P.table(S, 8.6, y0, -1.1, 2.7, 1.1, { h: 0.85, wood: MAT.walnut, cloth: MAT.velvet });
   const cof = P.coffin(G, { len: 2.4, w: 0.8, h: 0.55 });
   cof.g.position.set(8.6, y0 + 0.85, -1.1);
   // bony hands that peek from under the lid
@@ -279,6 +283,7 @@ function conservatory(root) {
   hands.visible = false;
   const inner = new THREE.PointLight(0x6dffb0, 0, 4, 2); inner.position.set(8.6, y0 + 1.6, -1.1);
   const innerE = addLight(inner, { room: 'conserv', flicker: 0.3, speed: 12 });
+  W.coffinGlow = inner;   // js/baked.js lights the baked room with it too
   const cst = { open: 0, burst: 0, next: rand(5, 10) };
   onUpdate((t, dt) => {
     cst.next -= dt;
@@ -293,26 +298,26 @@ function conservatory(root) {
     innerE.base = cst.open * 30;
   });
   // candle stands and wreaths
-  for (const x of [6.8, 10.4]) { cyl(0.08, 0.16, 1.6, MAT.iron, x, y0 + 0.8, -1.1, S, 6); cyl(0.14, 0.08, 0.06, MAT.iron, x, y0 + 1.63, -1.1, S, 8); P.candle(S, x, y0 + 1.66, -1.1, { h: 0.5, r: 0.07 }); }
+  if (!BK) for (const x of [6.8, 10.4]) { cyl(0.08, 0.16, 1.6, MAT.iron, x, y0 + 0.8, -1.1, S, 6); cyl(0.14, 0.08, 0.06, MAT.iron, x, y0 + 1.63, -1.1, S, 8); P.candle(S, x, y0 + 1.66, -1.1, { h: 0.5, r: 0.07 }); }
   for (const [x, z] of [[6.0, -3.4], [11.3, -3.4]]) {
-    const wr = new THREE.Group(); wr.position.set(x, y0, z); S.add(wr);
+    const wr = new THREE.Group(); wr.position.set(x, y0, z); SB.add(wr);
     for (const sx of [-0.25, 0.25]) { const l = cyl(0.025, 0.025, 1.6, MAT.walnut, sx, 0.8, 0.1, wr, 4); l.rotation.x = -0.12; }
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.11, 6, 14), MAT.deadLeaf); ring.position.y = 1.45; wr.add(ring);
     for (let i = 0; i < 9; i++) { const a = i / 9 * TAU; sphere(0.07, mat(pick(['#5a1a2a', '#4a2a3a', '#6a5a3a']), 0.8, 0, { flat: true }), Math.cos(a) * 0.42, 1.45 + Math.sin(a) * 0.42, 0.08, wr, 5, 4); }
   }
   // dead plants
-  P.pot(S, 5.7, y0, -3.9, { s: 1.1 }); P.pot(S, 7.6, y0, -4.0, { s: 0.9 }); P.pot(S, 9.9, y0, -4.0, { s: 1.0 });
-  P.pot(S, 12.7, y0, -3.7, { s: 1.4, tall: true }); P.pot(S, 13.0, y0, -1.2, { s: 1.0 }); P.pot(S, 5.5, y0, 1.2, { s: 0.85 });
+  P.pot(SB, 5.7, y0, -3.9, { s: 1.1 }); P.pot(SB, 7.6, y0, -4.0, { s: 0.9 }); P.pot(SB, 9.9, y0, -4.0, { s: 1.0 });
+  P.pot(SB, 12.7, y0, -3.7, { s: 1.4, tall: true }); P.pot(SB, 13.0, y0, -1.2, { s: 1.0 }); P.pot(SB, 5.5, y0, 1.2, { s: 0.85 });
   // plant stand with a raven
-  cyl(0.06, 0.12, 1.6, MAT.iron, 11.6, y0 + 0.8, 0.6, S, 6); cyl(0.3, 0.3, 0.06, MAT.iron, 11.6, y0 + 1.62, 0.6, S, 10);
+  if (!BK) { cyl(0.06, 0.12, 1.6, MAT.iron, 11.6, y0 + 0.8, 0.6, S, 6); cyl(0.3, 0.3, 0.06, MAT.iron, 11.6, y0 + 1.62, 0.6, S, 10); }
   const rv = P.raven(G, 11.6, y0 + 1.65, 0.6, -0.7, 1.4);
   // creeping vines on the glass
   for (let i = 0; i < 6; i++) {
     const pts = []; let x = rand(5.6, 12.6), y = y0; const z = -4.45;
     for (let k = 0; k < 9; k++) { pts.push(new THREE.Vector3(x, y, z)); x += rand(-0.5, 0.5); y += rand(0.4, 0.75); }
     const tube = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.03, 4);
-    mesh(tube, MAT.bark, 0, 0, 0, S);
-    for (let k = 1; k < pts.length; k++) { const lf = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 3), MAT.deadLeaf); lf.position.copy(pts[k]); lf.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3)); S.add(lf); }
+    mesh(tube, MAT.bark, 0, 0, 0, SB);
+    for (let k = 1; k < pts.length; k++) { const lf = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 3), MAT.deadLeaf); lf.position.copy(pts[k]); lf.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3)); SB.add(lf); }
   }
   const gl = new THREE.PointLight(0x7dffb8, 13, 12, 1.4); gl.position.set(9.0, 5.0, 0.4);
   addLight(gl, { room: 'conserv', flicker: 0.12 });

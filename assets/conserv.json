@@ -1,0 +1,50 @@
+{
+ "triangles": 16194,
+ "groups": [
+  "main",
+  "back",
+  "right"
+ ],
+ "lit": [],
+ "materials": [
+  "brass",
+  "ceiling",
+  "checker",
+  "curtain",
+  "dead_leaf",
+  "flower",
+  "gilt",
+  "iron",
+  "marble_dark",
+  "plaster",
+  "ribbon",
+  "soil",
+  "stem",
+  "stone",
+  "terracotta",
+  "velvet",
+  "wainscot",
+  "wallpaper",
+  "walnut",
+  "wax",
+  "wicker"
+ ],
+ "samples": 256,
+ "warm": {
+  "scale": 0.8376843929290771,
+  "size": 2048,
+  "seconds": 18.6,
+  "mean": 0.07714584469795227,
+  "p50": 0.026742316782474518,
+  "clipped": 0.000997304916381836
+ },
+ "cool": {
+  "scale": 2.877701759338379,
+  "size": 1536,
+  "seconds": 12.4,
+  "mean": 0.2550414502620697,
+  "p50": 0.1032589003443718,
+  "clipped": 0.0011689927842881945
+ },
+ "seconds": 36.6
+}

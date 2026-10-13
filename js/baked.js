@@ -1,5 +1,6 @@
 // Sets modelled in Blender and lit with Cycles: the Grand Hall (blender/grand_hall.py), the Endless Hall
-// (blender/endless_hall.py), the mansion's exterior (blender/exterior.py) and the grounds round it (blender/grounds.py).
+// (blender/endless_hall.py), the Conservatory (blender/conservatory.py), the mansion's exterior (blender/exterior.py) and
+// the grounds round it (blender/grounds.py).
 // Each set's light is baked into two lightmaps, warm and cool. Keeping them
 // apart lets the set still dim for the lantern, brighten on hover, flicker and flash with lightning. Surfaces
 // are otherwise unlit, apart from the lantern, glints of the flames in polished surfaces and a cheap fake
@@ -21,6 +22,7 @@ const num = (k, d) => parseFloat(Q.get(k) || d);
 const KW = num('kw', '0.34'), KC = num('kc', '0.5');
 const EXT_KW = num('ekw', '0.3'), EXT_KC = num('ekc', '0.65');   // matched to the procedural facades' brightness and colour
 const END_KW = num('nkw', '0.34'), END_KC = num('nkc', '0.5');
+const CON_KW = num('ckw', '1.0'), CON_KC = num('ckc', '1.2');      // its green glow and moonlight bake dimmer than candles
 
 let gltf = null;
 function loader() {
@@ -103,6 +105,15 @@ const ENDLESS_LOOK = {
   c_paper: { mat: 'papEyes', glow: true, taper: TAPER }, c_wainscot: { map: 'wainscotDark', uv: 2.4, gloss: 0.15, taper: TAPER },
   c_runner: { map: 'rugRed', uv: 2.2, taper: TAPER }, c_floor: { map: 'woodDark', uv: 3, gloss: 0.2, taper: TAPER },
 };
+// the Conservatory: its own damask, and the dead plants, wreaths and pall in the site's colours
+const CONSERV_LOOK = {
+  wallpaper: { mat: 'papConserv' }, wainscot: { map: 'wainscot', uv: 2.4, gloss: 0.15 }, walnut: { color: '#2a170d', gloss: 0.2 },
+  gilt: { color: '#c9a24a', metal: 1 }, brass: { color: '#a8844e', metal: 1 }, iron: { color: '#17131d', metal: 0.5 },
+  plaster: { map: 'plaster', uv: 3 }, ceiling: { map: 'plaster', uv: 6 }, checker: { map: 'checkerGreen', uv: 4, gloss: 0.45 },
+  marble_dark: { color: '#2e2834', gloss: 0.4, vein: 1 }, stone: { map: 'stone', uv: 3 }, velvet: { color: '#4b2563' }, curtain: { map: 'curtainGreen', uv: 1.6 },
+  wax: { color: '#efe6cf' }, terracotta: { color: '#8a4a32' }, soil: { color: '#2a1a12' }, dead_leaf: { color: '#5a4a2e' }, stem: { color: '#3a2e26' },
+  flower: { color: '#4a1a2a' }, ribbon: { color: '#3a1f45' }, wicker: { color: '#5a4630' },
+};
 // the Grand Hall's brightest flames, which polished surfaces pick up as glints: position and strength
 const HALL_GLINTS = [[-5.0, 12.5, 1.6, 7], [-10.3, 7.9, -4.1, 5], [-6.4, 9.1, -0.45, 2.2], [-2.8, 9.1, -0.45, 2.2],
   [4.17, 10.6, 0.0, 1.4], [4.17, 10.6, 3.0, 1.4], [-12.4, 11.2, -4.28, 1.4], [-4.6, 9.3, -0.55, 1.2]];
@@ -121,7 +132,8 @@ const FRAG = /* glsl */`
   uniform sampler2D uWarm, uCool, uMap, uGlowMap;
   uniform vec3 uColor, uWarmK, uCoolK, uLampPos, uLampDir, uLampCol, uEdge, uHot, uHotCol, uEnvLow, uEnvHigh, uGlowCol;
   uniform vec2 uLampCone, uUv;
-  uniform vec4 uRug, uFire, uGlints[${MAX_GLINTS}], uTaper;
+  uniform vec4 uRug, uFire, uGlints[${MAX_GLINTS}], uTaper, uPoint;
+  uniform vec3 uPointCol;
   uniform float uMode, uMetal, uGloss, uVein, uGlintK, uDissolve, uDebug, uTaperLen, uGlowK;
   varying vec2 vLm; varying vec3 vW; varying vec3 vN;
   ${NOISE_GLSL}
@@ -165,6 +177,11 @@ const FRAG = /* glsl */`
     float spot = smoothstep(uLampCone.x, uLampCone.y, dot(-L, uLampDir));
     float att = pow(clamp(1.0 - pow(d / 34.0, 4.0), 0.0, 1.0), 2.0) / max(pow(d, 1.5), 0.01);
     col += albedo * uLampCol * (max(dot(N, L), 0.0) * att * spot * 0.3183099);
+    if (uPoint.w > 0.0) {             // a live light the bake can't know about (the coffin's glow when its lid lifts)
+      vec3 Lp = uPoint.xyz - vW; float dp = length(Lp); Lp /= dp;
+      float fall = pow(clamp(1.0 - pow(dp / uPoint.w, 4.0), 0.0, 1.0), 2.0) / max(dp * dp, 0.01);
+      col += albedo * uPointCol * (max(dot(N, Lp), 0.0) * fall * 0.3183099);
+    }
     if (uMetal > 0.0) {               // metals reflect a simple environment with the brightest light as a hot spot
       vec3 V = normalize(cameraPosition - vW);
       vec3 R = reflect(-V, N);
@@ -208,6 +225,7 @@ function sharedUniforms(set, { hot, hotCol, envLow, envHigh, glints = [] }) {
     uHot: { value: v3(hot) }, uHotCol: { value: v3(hotCol) }, uEnvLow: { value: v3(envLow) }, uEnvHigh: { value: v3(envHigh) },
     uGlints: { value: Array.from({ length: MAX_GLINTS }, (_, i) => new THREE.Vector4(...(glints[i] || [0, -100, 0, 0]))) },
     uGlintK: { value: 1 },
+    uPoint: { value: new THREE.Vector4(0, -100, 0, 0) }, uPointCol: { value: new THREE.Vector3() },
     uDebug: { value: Q.has('lightmap') ? 1 : 0 },
   };
   let lamp = null;
@@ -333,6 +351,35 @@ export function addBakedEndless(root) {
     shared.uCoolK.value.setScalar(H.meta.cool.scale * END_KC * mul * (1 - storm * 0.25) * (1 + flash * 2.5));
   });
   W.bakedEndlessGroup = G;
+  return G;
+}
+
+// ---------------------------------------------------------------- the Conservatory
+// Its glass wall's dressing melts with the back facade and its side wall's with the right; the rest stays put. Its
+// warm light (the green glow and the candles) follows the room's, and the coffin's own light, when the lid lifts, is
+// added live, as the site lights the coffin with it.
+export function addBakedConservatory(root) {
+  const H = W.bakedConserv;
+  const shared = sharedUniforms(H, { hot: [9.0, 5.0, 0.4], hotCol: [0.6, 2.4, 1.4], envLow: [0.02, 0.04, 0.04], envHigh: [0.2, 0.32, 0.4] });
+  const G = new THREE.Group(); G.name = 'bakedConserv'; G.userData.noCompact = true;
+  root.add(G);
+  attach(H, shared, CONSERV_LOOK, (name) => ({ Con_back: { dissolver: 'back' }, Con_right: { dissolver: 'right' } }[name] || (name.startsWith('Con_') ? { parent: G } : null)));
+  for (const f of H.flames) P.flame(G, f.p.x, f.p.y, f.p.z, f.s);
+  const glow = W.coffinGlow, at = new THREE.Vector3();
+  onUpdate((t) => {
+    const room = W.rooms.conserv;
+    const mul = (room ? room.lightMul : 1) * W.lightMul;
+    const flick = 0.93 + 0.07 * (0.65 * noise1(t * 4 + 5.3) + 0.35 * (0.5 + 0.5 * Math.sin(t * 7.1 + 0.4)));
+    const storm = W.fx?.stormK || 0, flash = W.U.uFlash.value;
+    shared.uWarmK.value.setScalar(H.meta.warm.scale * CON_KW * flick * mul);
+    shared.uCoolK.value.setScalar(H.meta.cool.scale * CON_KC * mul * (1 - storm * 0.25) * (1 + flash * 2.5));
+    if (glow) {
+      glow.getWorldPosition(at);
+      shared.uPoint.value.set(at.x, at.y, at.z, glow.intensity > 0.01 ? glow.distance : 0);
+      shared.uPointCol.value.set(glow.color.r, glow.color.g, glow.color.b).multiplyScalar(glow.intensity);
+    }
+  });
+  W.bakedConservGroup = G;
   return G;
 }
 
