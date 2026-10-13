@@ -1,0 +1,39 @@
+{
+ "triangles": 8729,
+ "groups": [
+  "main"
+ ],
+ "lit": [],
+ "materials": [
+  "brass",
+  "damask",
+  "flags",
+  "gilt",
+  "glass",
+  "iron",
+  "stone",
+  "velvet",
+  "wainscot",
+  "walnut",
+  "wax",
+  "wood_dark"
+ ],
+ "samples": 256,
+ "warm": {
+  "scale": 3.7205798625946045,
+  "size": 2048,
+  "seconds": 16.9,
+  "mean": 0.13951171934604645,
+  "p50": 0.01995234377682209,
+  "clipped": 0.001056671142578125
+ },
+ "cool": {
+  "scale": 0.5665460228919983,
+  "size": 1024,
+  "seconds": 4.5,
+  "mean": 0.040489692240953445,
+  "p50": 0.022677414119243622,
+  "clipped": 0.0012445449829101562
+ },
+ "seconds": 26.3
+}

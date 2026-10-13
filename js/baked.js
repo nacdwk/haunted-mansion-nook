@@ -26,6 +26,7 @@ const END_KW = num('nkw', '0.34'), END_KC = num('nkc', '0.5');
 const CON_KW = num('ckw', '1.0'), CON_KC = num('ckc', '1.2');      // its green glow and moonlight bake dimmer than candles
 const SEA_KW = num('skw', '0.7'), SEA_KC = num('skc', '1.4');      // the crystal ball lights it live
 const ATT_KW = num('akw', '1.0'), ATT_KC = num('akc', '6.0');     // the house's ambient light fills the Attic, as it did
+const BAS_KW = num('bkw', '2.0'), BAS_KC = num('bkc', '4.0');
 
 let gltf = null;
 function loader() {
@@ -54,7 +55,7 @@ export async function loadBakedSet(name) {
   const set = { name, scene: model.scene, warm, cool, meta, pipes: [], flames: [], fire: null };
   model.scene.traverse((o) => {
     if (o.name.startsWith('PipeTop_')) set.pipes.push(o.position.clone());
-    else if (o.name.startsWith('Flame_')) set.flames.push({ p: o.position.clone(), s: o.userData.flameScale ?? 0.7, green: !!o.userData.flameGreen });
+    else if (o.name.startsWith('Flame_')) set.flames.push({ p: o.position.clone(), s: o.userData.flameScale ?? 0.7, green: !!o.userData.flameGreen, blue: !!o.userData.flameBlue });
     else if (o.name === 'Fire') set.fire = o.position.clone();
   });
   return set;
@@ -138,6 +139,16 @@ const ATTIC_LOOK = {
   dress: { color: '#d9cfd6' }, form: { color: '#8a7a6a' }, sash: { color: '#7a2a3a' }, wax: { color: '#efe6cf' },
   mirror: { color: '#4a5070', metal: 1 }, rug: { map: 'rugBlue', rug: [-0.6, 0.4, 3.2, 2.4] },
 };
+// the basement: the house's stone, flagstones, its own dark damask and wainscot, and lanterns whose glass glows
+const BASEMENT_LOOK = {
+  stone: { map: 'stoneDark', uv: 3.5 }, flags: { map: 'flags', uv: 3, gloss: 0.2 }, damask: { map: 'papBase', uv: 2.2 },
+  wainscot: { map: 'wainscotDark', uv: 2.4, gloss: 0.15 }, walnut: { color: '#2a170d', gloss: 0.2 }, wood_dark: { map: 'woodDark', uv: 5 },
+  gilt: { color: '#c9a24a', metal: 1 }, brass: { color: '#a8844e', metal: 1 }, iron: { color: '#17131d', metal: 0.5 },
+  velvet: { color: '#5e1426' }, wax: { color: '#efe6cf' }, glass: { color: '#000000', emit: '#ffb060', emitK: 2.6 },
+};
+// the lanterns over the track and the sconces between the portraits, which polished floors and gilt pick up as glints
+const BASEMENT_GLINTS = [[-15.0, -1.8, 8.6, 2], [-6.0, -1.8, 8.6, 2], [3.0, -1.8, 8.6, 2], [12.6, -1.8, 8.6, 2],
+  [-10.5, -2.1, 6.38, 1], [-4.7, -2.1, 6.38, 1], [1.1, -2.1, 6.38, 1], [6.9, -2.1, 6.38, 1]];
 // the Grand Hall's brightest flames, which polished surfaces pick up as glints: position and strength
 const HALL_GLINTS = [[-5.0, 12.5, 1.6, 7], [-10.3, 7.9, -4.1, 5], [-6.4, 9.1, -0.45, 2.2], [-2.8, 9.1, -0.45, 2.2],
   [4.17, 10.6, 0.0, 1.4], [4.17, 10.6, 3.0, 1.4], [-12.4, 11.2, -4.28, 1.4], [-4.6, 9.3, -0.55, 1.2]];
@@ -207,7 +218,9 @@ const FRAG = /* glsl */`
     if (uPoint.w > 0.0) {             // a live light the bake can't know about (the coffin's glow when its lid lifts)
       vec3 Lp = uPoint.xyz - vW; float dp = length(Lp); Lp /= dp;
       float fall = pow(clamp(1.0 - pow(dp / uPoint.w, 4.0), 0.0, 1.0), 2.0) / max(pow(dp, uPointDecay), 0.01);
-      col += albedo * uPointCol * (max(dot(N, Lp), 0.0) * fall * 0.3183099);
+      vec3 Ep = uPointCol * (max(dot(N, Lp), 0.0) * fall * 0.3183099);
+      col += albedo * Ep;
+      E += Ep;                        // so that metals catch it too
     }
     if (uMetal > 0.0) {               // metals reflect a simple environment with the brightest light as a hot spot
       vec3 V = normalize(cameraPosition - vW);
@@ -462,6 +475,35 @@ export function addBakedAttic(root) {
     shared.uCoolK.value.setScalar(H.meta.cool.scale * ATT_KC * mul * (1 - storm * 0.25) * (1 + flash * 2.5));
   });
   W.bakedAtticGroup = G;
+  return G;
+}
+
+// ---------------------------------------------------------------- the basement
+// The Portrait Hall never melts away. Its sconces' blue candles, its lanterns and its two fill lights are baked;
+// the night comes down the cellar opening the ride descends through. The light the ride turns on at the mirror
+// is added live.
+export function addBakedBasement(root) {
+  const H = W.bakedBasement;
+  const shared = sharedUniforms(H, { hot: [3.0, -1.8, 8.6], hotCol: [2.0, 1.4, 0.8], envLow: [0.03, 0.025, 0.04], envHigh: [0.3, 0.25, 0.3], glints: BASEMENT_GLINTS });
+  const G = new THREE.Group(); G.name = 'bakedBasement'; G.userData.noCompact = true;
+  root.add(G);
+  attach(H, shared, BASEMENT_LOOK, (name) => (name.startsWith('Base_') ? { parent: G } : null));
+  for (const f of H.flames) P.flame(G, f.p.x, f.p.y, f.p.z, f.s, f.blue ? MAT.flameBlue : undefined);
+  onUpdate((t) => {
+    const room = W.rooms.basement;
+    const mul = (room ? room.lightMul : 1) * W.lightMul;
+    const flick = 0.93 + 0.07 * (0.65 * noise1(t * 4.2 + 3.3) + 0.35 * (0.5 + 0.5 * Math.sin(t * 7.7 + 0.8)));
+    const storm = W.fx?.stormK || 0, flash = W.U.uFlash.value;
+    shared.uWarmK.value.setScalar(H.meta.warm.scale * BAS_KW * flick * mul);
+    shared.uCoolK.value.setScalar(H.meta.cool.scale * BAS_KC * mul * (1 - storm * 0.25) * (1 + flash * 2.5));
+    const ml = W.ride?.st.mirrorLight;
+    if (ml) {
+      shared.uPoint.value.set(ml.position.x, ml.position.y, ml.position.z, ml.intensity > 0.01 ? ml.distance : 0);
+      shared.uPointCol.value.set(ml.color.r, ml.color.g, ml.color.b).multiplyScalar(ml.intensity);
+      shared.uPointDecay.value = ml.decay;
+    }
+  });
+  W.bakedBasementGroup = G;
   return G;
 }
 
