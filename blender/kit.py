@@ -241,6 +241,20 @@ def dome(c, rx, ry, rz, m, seg=10, rings=4):
     bm.faces.new(list(reversed(rows[-1])))
     return finish(bm, m, 'dome')
 
+def loft(rings, m):
+    """A closed solid through rings of points (three coords, the same count in each), bottom to top: a skirt, a
+    sheet over furniture."""
+    bm = bmesh.new()
+    vs = [[bm.verts.new(V(*p)) for p in ring] for ring in rings]
+    n = len(rings[0])
+    for a, b in zip(vs, vs[1:]):
+        for i in range(n):
+            j = (i + 1) % n
+            bm.faces.new((a[i], a[j], b[j], b[i]))
+    bm.faces.new(list(reversed(vs[0])))
+    bm.faces.new(vs[-1])
+    return finish(bm, m, 'loft')
+
 def fence(x0, z0, x1, z1, y0, h, m, gap=0.22, posts=2.4):
     """Wrought-iron railing along an axis-aligned run: posts with ball caps, two rails, spear-topped bars."""
     L = math.hypot(x1 - x0, z1 - z0)

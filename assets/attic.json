@@ -1,0 +1,55 @@
+{
+ "triangles": 10666,
+ "groups": [
+  "main",
+  "slope-front",
+  "slope-back",
+  "slope-left",
+  "slope-right"
+ ],
+ "lit": [],
+ "materials": [
+  "beam",
+  "brass",
+  "canvas",
+  "dress",
+  "floor",
+  "form",
+  "gilt",
+  "hatbox_a",
+  "hatbox_b",
+  "hatbox_c",
+  "ivory",
+  "lining",
+  "mirror",
+  "piano",
+  "ribbon",
+  "rug",
+  "sash",
+  "slat",
+  "trunk_a",
+  "trunk_b",
+  "trunk_c",
+  "velvet",
+  "walnut",
+  "wax"
+ ],
+ "samples": 256,
+ "warm": {
+  "scale": 1.7975205183029175,
+  "size": 2048,
+  "seconds": 20.0,
+  "mean": 0.15375423431396484,
+  "p50": 0.03641723096370697,
+  "clipped": 0.0006451606750488281
+ },
+ "cool": {
+  "scale": 1.8931375741958618,
+  "size": 1024,
+  "seconds": 6.9,
+  "mean": 0.07607751339673996,
+  "p50": 0.04757290706038475,
+  "clipped": 0.0010232925415039062
+ },
+ "seconds": 30.3
+}

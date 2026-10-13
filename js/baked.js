@@ -25,6 +25,7 @@ const EXT_KW = num('ekw', '0.3'), EXT_KC = num('ekc', '0.65');   // matched to t
 const END_KW = num('nkw', '0.34'), END_KC = num('nkc', '0.5');
 const CON_KW = num('ckw', '1.0'), CON_KC = num('ckc', '1.2');      // its green glow and moonlight bake dimmer than candles
 const SEA_KW = num('skw', '0.7'), SEA_KC = num('skc', '1.4');      // the crystal ball lights it live
+const ATT_KW = num('akw', '1.0'), ATT_KC = num('akc', '6.0');     // the house's ambient light fills the Attic, as it did
 
 let gltf = null;
 function loader() {
@@ -126,6 +127,16 @@ const SEANCE_LOOK = {
   marble_dark: { color: '#2e2834', gloss: 0.4, vein: 1 }, rug: { map: 'rugPurple', rug: [7.5, 2.8, 3.8, 3.8] }, curtain: { map: 'curtainPurple', uv: 1.6 },
   wax: { color: '#efe6cf' }, glass: { color: '#141822', metal: 0.5 }, bone: { color: '#e9e3cf' }, void: { color: '#050308' },
   bottle_green: bottle('#6dffb0'), bottle_violet: bottle('#c070ff'), bottle_orange: bottle('#ff6a3a'), bottle_blue: bottle('#5ad8ff'),
+};
+// the Attic: plank floor and lining in the house's own wood, a lacquered piano, and the rug laid where the site had it
+const ATTIC_LOOK = {
+  floor: { map: 'wood', uv: 5, gloss: 0.15 }, lining: { map: 'woodDark', uv: 5 }, beam: { color: '#2e1c12', gloss: 0.1 },
+  piano: { color: '#0d0b10', gloss: 0.6 }, ivory: { color: '#f2ecde', gloss: 0.2 }, brass: { color: '#a8844e', metal: 1 }, gilt: { color: '#c9a24a', metal: 1 },
+  walnut: { color: '#2a170d', gloss: 0.2 }, velvet: { color: '#5e1426' }, slat: { color: '#6a4a2a' }, ribbon: { color: '#d8cfc0' },
+  trunk_a: { color: '#4a2a1a', gloss: 0.15 }, trunk_b: { color: '#3a2a3a', gloss: 0.15 }, trunk_c: { color: '#2a3a3a', gloss: 0.15 },
+  hatbox_a: { color: '#7a4a5a' }, hatbox_b: { color: '#4a5a7a' }, hatbox_c: { color: '#8a7a4a' }, canvas: { color: '#b9b0a2' },
+  dress: { color: '#d9cfd6' }, form: { color: '#8a7a6a' }, sash: { color: '#7a2a3a' }, wax: { color: '#efe6cf' },
+  mirror: { color: '#4a5070', metal: 1 }, rug: { map: 'rugBlue', rug: [-0.6, 0.4, 3.2, 2.4] },
 };
 // the Grand Hall's brightest flames, which polished surfaces pick up as glints: position and strength
 const HALL_GLINTS = [[-5.0, 12.5, 1.6, 7], [-10.3, 7.9, -4.1, 5], [-6.4, 9.1, -0.45, 2.2], [-2.8, 9.1, -0.45, 2.2],
@@ -429,6 +440,28 @@ export function addBakedSeance(root) {
     }
   });
   W.bakedSeanceGroup = G;
+  return G;
+}
+
+// ---------------------------------------------------------------- the Attic
+// Each slope's lining melts with that slope of the mansard; the floor and the furniture stay put. The bride's light
+// never moves, so it is baked with the candles; the night through the ride's way out is the cool light.
+export function addBakedAttic(root) {
+  const H = W.bakedAttic;
+  const shared = sharedUniforms(H, { hot: [1.0, 16.9, -0.4], hotCol: [1.0, 1.5, 2.6], envLow: [0.03, 0.03, 0.06], envHigh: [0.25, 0.3, 0.45] });
+  const G = new THREE.Group(); G.name = 'bakedAttic'; G.userData.noCompact = true;
+  root.add(G);
+  attach(H, shared, ATTIC_LOOK, (name) => (name.startsWith('Att_slope-') ? { dissolver: `mansard-${name.slice(10)}` } : (name.startsWith('Att_') ? { parent: G } : null)));
+  for (const f of H.flames) P.flame(G, f.p.x, f.p.y, f.p.z, f.s);
+  onUpdate((t) => {
+    const room = W.rooms.attic;
+    const mul = (room ? room.lightMul : 1) * W.lightMul;
+    const flick = 0.93 + 0.07 * (0.65 * noise1(t * 4.5 + 7.7) + 0.35 * (0.5 + 0.5 * Math.sin(t * 8.3 + 2.2)));
+    const storm = W.fx?.stormK || 0, flash = W.U.uFlash.value;
+    shared.uWarmK.value.setScalar(H.meta.warm.scale * ATT_KW * flick * mul);
+    shared.uCoolK.value.setScalar(H.meta.cool.scale * ATT_KC * mul * (1 - storm * 0.25) * (1 + flash * 2.5));
+  });
+  W.bakedAtticGroup = G;
   return G;
 }
 

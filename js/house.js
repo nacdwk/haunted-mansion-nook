@@ -244,6 +244,7 @@ export function buildShell(root) {
   const endless = !!W.bakedEndless; // and the baked Endless Hall its own, its floor, the arch and the corridor beyond
   const conserv = !!W.bakedConserv; // and the baked Conservatory its own, its floor and its side window's drapes
   const seance = !!W.bakedSeance; // and the baked Séance Circle its own, its floor and its windows' drapes
+  const attic = !!W.bakedAttic; // and the baked Attic its floorboards
   const ext = !!W.bakedExterior; // and the baked exterior its own siding, trim, portico and doors (js/baked.js)
   const siding = (L) => (ext ? [] : [{ u0: 0, u1: L, v0: F1, v1: AT, mat: MAT.siding }]);
   const ROOM = { lib: [0, 9.33], foy: [9.33, 18.67], con: [18.67, 28] };
@@ -435,7 +436,7 @@ export function buildShell(root) {
   const slot = { u0: -13.4, u1: -9.0, v0: -4.6, v1: -2.0 };
   for (const r of subtractRects(-13.6, 13.6, -4.6, 4.6, [slot])) {
     boxA(r.u0, r.u1, 13.6, 13.92, r.v0, r.v1, MAT.plaster, S);
-    boxA(r.u0, r.u1, 13.92, AT, r.v0, r.v1, MAT.wood, S);
+    if (!attic) boxA(r.u0, r.u1, 13.92, AT, r.v0, r.v1, MAT.wood, S);
   }
   // sill plates over the wall tops inside the attic
   boxA(-14.05, 14.05, 13.98, 14.07, -5.06, -4.55, MAT.woodDark, S);
@@ -528,6 +529,7 @@ function buildEndlessHall(S) {
 export function buildMansard(root) {
   const y0 = D.AT, y1 = D.TOP;
   const ext = !!W.bakedExterior; // the baked exterior has the shingled slopes and the dormers (their panes stay)
+  const attic = !!W.bakedAttic; // and the baked Attic the slopes' lining, with its rafters (js/baked.js)
   const B = 14.25, Bz = 5.25, Tx = 12.3, Tz = 3.3;
   const slopes = [];
   const mk = (name, quads, n, c, extras) => {
@@ -538,17 +540,28 @@ export function buildMansard(root) {
       const A = new THREE.Vector3(...q[0]), Bv = new THREE.Vector3(...q[1]), Dv = new THREE.Vector3(...q[3]);
       const nn = new THREE.Vector3().subVectors(Bv, A).cross(new THREE.Vector3().subVectors(Dv, A)).normalize().multiplyScalar(-0.12);
       const qi = q.map((p) => new THREE.Vector3(...p).add(nn).toArray());
-      g.add(new THREE.Mesh(quadPrism(qi[0], qi[1], qi[2], qi[3], 0.1), MAT.woodDark));
+      if (!attic) g.add(new THREE.Mesh(quadPrism(qi[0], qi[1], qi[2], qi[3], 0.1), MAT.woodDark));
     }
     if (extras) extras(g);
     const dst = new THREE.Group(); dst.name = 'mansard-' + name;
     bake(g, dst); root.add(dst);
     slopes.push(makeDissolver(dst, n, c, { name: 'mansard-' + name }));
   };
-  // front with three dormers
-  mk('front', [[[-B, y0, Bz], [B, y0, Bz], [Tx, y1, Tz], [-Tx, y1, Tz]]], new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 16, 5), (g) => {
-    for (const x of [-8, 0, 8]) dormer(g, x, 4.25, ext);
-  });
+  // front with three dormers, each over a hole in the slope (x ± 1.03, from where its face meets the slope up to its
+  // eaves) that opens into a nook in the attic; the slope is in pieces round the holes
+  {
+    const t = (y) => (y - y0) / (y1 - y0), P = (x, y) => [x, y, Bz - (Bz - Tz) * t(y)], X = (y) => B - (B - Tx) * t(y);
+    const hy0 = y0 + (Bz - DORMER_Z) / (Bz - Tz) * (y1 - y0), hy1 = 17.1;
+    const front = [[P(-X(y0), y0), P(X(y0), y0), P(X(hy0), hy0), P(-X(hy0), hy0)], [P(-X(hy1), hy1), P(X(hy1), hy1), P(X(y1), y1), P(-X(y1), y1)]];
+    const edges = [null, ...DORMERS.flatMap((d) => [d - 1.03, d + 1.03]), null];
+    for (let i = 0; i < edges.length; i += 2) {
+      const a = edges[i], b = edges[i + 1];
+      front.push([P(a ?? -X(hy0), hy0), P(b ?? X(hy0), hy0), P(b ?? X(hy1), hy1), P(a ?? -X(hy1), hy1)]);
+    }
+    mk('front', front, new THREE.Vector3(0, 0, 1), new THREE.Vector3(0, 16, 5), (g) => {
+      for (const x of DORMERS) dormer(g, x, DORMER_Z, ext);
+    });
+  }
   mk('back', [[[B, y0, -Bz], [-B, y0, -Bz], [-Tx, y1, -Tz], [Tx, y1, -Tz]]], new THREE.Vector3(0, 0, -1), new THREE.Vector3(0, 16, -5));
   mk('left', [[[-B, y0, -Bz], [-B, y0, Bz], [-Tx, y1, Tz], [-Tx, y1, -Tz]]], new THREE.Vector3(-1, 0, 0), new THREE.Vector3(-14, 16, 0));
   // right slope with an opening for the ride (z in [1.0, 3.6], up to t=0.52)
@@ -568,20 +581,31 @@ export function buildMansard(root) {
   // a fix for the degenerate front corner piece of the right slope: a small triangle cap
   return slopes;
 }
+const DORMERS = [-8, 0, 8], DORMER_Z = 5.12;
 function dormer(g, x, z, paneOnly = false) {
-  const w = 2.3, y0 = 14.6, h = 2.5, d = 2.2;
-  const gw = mesh(new THREE.PlaneGeometry(1.2, 1.7), MAT.windowArch, x, y0 + 1.15, z + 0.02, g);
+  const w = 2.3, ry = 17.1;
+  mesh(new THREE.PlaneGeometry(1.2, 1.7), MAT.windowArch, x, 15.75, z - 0.03, g);            // the pane outside
+  const ng = mesh(new THREE.PlaneGeometry(1.2, 1.7), MAT.nightGlass, x, 15.75, z - 0.09, g);  // and from the nook
+  ng.rotation.y = Math.PI;
   if (paneOnly) return;
-  boxA(x - w / 2, x + w / 2, y0, y0 + h, z - d, z, MAT.siding, g);
-  boxA(x - w / 2 - 0.12, x + w / 2 + 0.12, y0 - 0.1, y0 + 0.05, z - d, z + 0.12, MAT.trim, g);
-  const op = { u0: x - 0.6, u1: x + 0.6, v0: y0 + 0.3, v1: y0 + 2.0 };
-  boxA(op.u0 - 0.14, op.u0, op.v0, op.v1, z, z + 0.08, MAT.trim, g);
-  boxA(op.u1, op.u1 + 0.14, op.v0, op.v1, z, z + 0.08, MAT.trim, g);
-  boxA(op.u0 - 0.14, op.u1 + 0.14, op.v0 - 0.14, op.v0, z, z + 0.14, MAT.trim, g);
+  // it stands out from the slope; its cheeks run back down to it, and zb(y) is just inside the shingles
+  const k = 1.95 / 5.4, zb = (y) => 5.186 - k * (y - 14), yb = 14 + (5.186 - z) / k, hy0 = 14 + (5.25 - z) / k;
+  for (const [u0, u1, v0, v1] of [[-w / 2, -0.6, yb, ry], [0.6, w / 2, yb, ry], [-0.6, 0.6, yb, 14.9], [-0.6, 0.6, 16.6, ry]]) {
+    boxA(x + u0, x + u1, v0, v1, z - 0.12, z, MAT.siding, g);
+  }
+  const cheek = new THREE.Shape(); cheek.moveTo(z, yb); cheek.lineTo(z, ry + 0.12); cheek.lineTo(zb(ry + 0.12), ry + 0.12); cheek.closePath();
+  for (const a of [x - w / 2, x + w / 2 - 0.12]) {
+    const cg = new THREE.ExtrudeGeometry(cheek, { depth: 0.12, bevelEnabled: false }); cg.rotateY(-Math.PI / 2); cg.translate(a + 0.12, 0, 0);
+    mesh(cg, MAT.siding, 0, 0, 0, g);
+  }
+  boxA(x - w / 2 - 0.06, x + w / 2 + 0.06, yb, hy0 + 0.1, z - 0.2, z + 0.06, MAT.trim, g);
+  boxA(x - 0.76, x - 0.6, 14.9, 16.6, z, z + 0.08, MAT.trim, g);
+  boxA(x + 0.6, x + 0.76, 14.9, 16.6, z, z + 0.08, MAT.trim, g);
+  boxA(x - 0.76, x + 0.76, 14.76, 14.9, z, z + 0.14, MAT.trim, g);
+  boxA(x - 0.76, x + 0.76, 16.6, 16.74, z, z + 0.08, MAT.trim, g);
   // gable roof
-  const ry = y0 + h;
-  const r1 = quadPrism([x - w / 2 - 0.3, ry, z + 0.3], [x, ry + 1.2, z + 0.3], [x, ry + 1.2, z - d], [x - w / 2 - 0.3, ry, z - d], 0.12);
-  const r2 = quadPrism([x, ry + 1.2, z + 0.3], [x + w / 2 + 0.3, ry, z + 0.3], [x + w / 2 + 0.3, ry, z - d], [x, ry + 1.2, z - d], 0.12);
+  const r1 = quadPrism([x - w / 2 - 0.3, ry, z + 0.3], [x, ry + 1.2, z + 0.3], [x, ry + 1.2, zb(ry + 1.2)], [x - w / 2 - 0.3, ry, zb(ry)], 0.12);
+  const r2 = quadPrism([x, ry + 1.2, z + 0.3], [x + w / 2 + 0.3, ry, z + 0.3], [x + w / 2 + 0.3, ry, zb(ry)], [x, ry + 1.2, zb(ry + 1.2)], 0.12);
   g.add(new THREE.Mesh(r1, MAT.shingleDark)); g.add(new THREE.Mesh(r2, MAT.shingleDark));
   const tri = new THREE.Shape(); tri.moveTo(-w / 2, 0); tri.lineTo(w / 2, 0); tri.lineTo(0, 1.15); tri.closePath();
   const pg = mesh(new THREE.ShapeGeometry(tri), MAT.trim, x, ry, z + 0.01, g);

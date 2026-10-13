@@ -634,6 +634,11 @@ function attic(root) {
   });
   const S = new THREE.Group(), G = new THREE.Group(); root.add(G);
   const y0 = D.AT;
+  // The baked room (blender/attic.py) brings the floorboards and the slopes' lining, and everything here that stays
+  // put: the piano (its tail now away from the pianist) and its bench, the trunks, hat boxes, dress form, birdcage,
+  // candles, mirror and rug. The trunks and hat boxes still roll the house's dice, into a group that's thrown away,
+  // so everything after them comes out the same.
+  const BK = !!W.bakedAttic, SB = BK ? new THREE.Group() : S;
   // the bride
   const bride = makeGhost({ height: 2.7, width: 0.42, flare: 2.1, skirt: 0.35, hat: 'veil', arms: 'front', color: 0xd2e4ff, opacity: 0.9 });
   bride.position.set(1.0, y0 + 0.08, -1.6); G.add(bride);
@@ -671,23 +676,25 @@ function attic(root) {
   });
   // the piano and its shadowy player
   const pg = new THREE.Group(); pg.position.set(-6.6, y0, 0.1); pg.rotation.y = 0.35; G.add(pg);
-  const pshape = new THREE.Shape(); pshape.moveTo(-0.8, -0.7); pshape.lineTo(0.8, -0.7); pshape.lineTo(0.8, 0.3); pshape.bezierCurveTo(0.8, 1.6, -0.2, 1.4, -0.4, 0.8); pshape.lineTo(-0.8, 0.7); pshape.closePath();
-  const pgeo = new THREE.ExtrudeGeometry(pshape, { depth: 0.45, bevelEnabled: false }); pgeo.rotateX(-Math.PI / 2); pgeo.translate(0, 0.62, 0);
-  mesh(pgeo, MAT.black, 0, 0, 0, pg);
-  const lidg = new THREE.ExtrudeGeometry(pshape, { depth: 0.03, bevelEnabled: false }); lidg.rotateX(-Math.PI / 2);
-  const lid = mesh(lidg, MAT.black, 0, 1.07, 0, pg); lid.rotation.x = -0.0; lid.rotation.z = 0.0;
-  const lidPivot = new THREE.Group(); lidPivot.position.set(0.8, 1.07, 0); pg.add(lidPivot); lid.position.set(-0.8, 0, 0); lidPivot.add(lid); lidPivot.rotation.z = 0.55;
-  for (const [lx, lz] of [[-0.6, -0.55], [0.6, -0.55], [0.2, 0.9]]) cyl(0.06, 0.05, 0.62, MAT.black, lx, 0.31, lz, pg, 6);
-  boxA(-0.78, 0.78, 0.86, 0.92, -0.86, -0.66, mat('#f2ecde', 0.4), pg);
-  for (let k = 0; k < 18; k++) boxA(-0.76 + k * 0.088, -0.76 + k * 0.088 + 0.04, 0.92, 0.95, -0.86, -0.74, MAT.black, pg);
-  P.chair(S, -6.85, y0, -1.0, 0.35, { seat: MAT.velvet, back: 0.3, s: 0.9 });
+  if (!BK) {
+    const pshape = new THREE.Shape(); pshape.moveTo(-0.8, -0.7); pshape.lineTo(0.8, -0.7); pshape.lineTo(0.8, 0.3); pshape.bezierCurveTo(0.8, 1.6, -0.2, 1.4, -0.4, 0.8); pshape.lineTo(-0.8, 0.7); pshape.closePath();
+    const pgeo = new THREE.ExtrudeGeometry(pshape, { depth: 0.45, bevelEnabled: false }); pgeo.rotateX(-Math.PI / 2); pgeo.translate(0, 0.62, 0);
+    mesh(pgeo, MAT.black, 0, 0, 0, pg);
+    const lidg = new THREE.ExtrudeGeometry(pshape, { depth: 0.03, bevelEnabled: false }); lidg.rotateX(-Math.PI / 2);
+    const lid = mesh(lidg, MAT.black, 0, 1.07, 0, pg); lid.rotation.x = -0.0; lid.rotation.z = 0.0;
+    const lidPivot = new THREE.Group(); lidPivot.position.set(0.8, 1.07, 0); pg.add(lidPivot); lid.position.set(-0.8, 0, 0); lidPivot.add(lid); lidPivot.rotation.z = 0.55;
+    for (const [lx, lz] of [[-0.6, -0.55], [0.6, -0.55], [0.2, 0.9]]) cyl(0.06, 0.05, 0.62, MAT.black, lx, 0.31, lz, pg, 6);
+    boxA(-0.78, 0.78, 0.86, 0.92, -0.86, -0.66, mat('#f2ecde', 0.4), pg);
+    for (let k = 0; k < 18; k++) boxA(-0.76 + k * 0.088, -0.76 + k * 0.088 + 0.04, 0.92, 0.95, -0.86, -0.74, MAT.black, pg);
+    P.chair(S, -6.85, y0, -1.0, 0.35, { seat: MAT.velvet, back: 0.3, s: 0.9 });
+  } else proxy(1.7, 1.9, 2.3, 0, 0.95, 0.25, pg);   // the baked piano is still the thing to click
   const pianist = makeGhost({ height: 1.9, width: 0.44, arms: 'front', color: 0x3a2050, blend: 'normal', opacity: 0.75, eyes: false });
   pianist.position.set(-6.85, y0 + 0.4, -1.0); pianist.rotation.y = 0.35; pianist.scale.y = 0.85; G.add(pianist);
   onUpdate((t) => { pianist.rotation.z = Math.sin(t * 2.4) * 0.08; pianist.position.y = y0 + 0.4 + Math.abs(Math.sin(t * 4.8)) * 0.04; });
   // trunks with pop-up ghosts
   const pops = [];
   [[6.8, -2.6, 0.3], [8.9, -1.2, -0.4], [10.6, -2.9, 0.15]].forEach(([x, z, r], i) => {
-    const tg = new THREE.Group(); tg.position.set(x, y0, z); tg.rotation.y = r; S.add(tg);
+    const tg = new THREE.Group(); tg.position.set(x, y0, z); tg.rotation.y = r; SB.add(tg);
     boxA(-0.6, 0.6, 0, 0.62, -0.38, 0.38, mat(pick(['#4a2a1a', '#3a2a3a', '#2a3a3a']), 0.7), tg);
     for (const sx of [-0.45, 0.45]) boxA(sx - 0.04, sx + 0.04, 0, 0.64, -0.4, 0.4, MAT.brass, tg);
     const gh = makeGhost({ height: 1.35, width: 0.36, arms: 'up', color: 0x9ffcf0, opacity: 0.9 });
@@ -707,35 +714,41 @@ function attic(root) {
     }
   });
   // clutter
-  for (const [x, z, n] of [[-2.6, -3.6, 3], [9.8, 1.0, 2], [-10.2, 0.2, 2]]) for (let k = 0; k < n; k++) cyl(0.32 - k * 0.04, 0.32 - k * 0.04, 0.3, mat(pick(['#7a4a5a', '#4a5a7a', '#8a7a4a']), 0.8), x + rand(-0.05, 0.05), y0 + 0.15 + k * 0.31, z, S, 14);
+  for (const [x, z, n] of [[-2.6, -3.6, 3], [9.8, 1.0, 2], [-10.2, 0.2, 2]]) for (let k = 0; k < n; k++) cyl(0.32 - k * 0.04, 0.32 - k * 0.04, 0.3, mat(pick(['#7a4a5a', '#4a5a7a', '#8a7a4a']), 0.8), x + rand(-0.05, 0.05), y0 + 0.15 + k * 0.31, z, SB, 14);
   // dress form with a veil
-  const df = new THREE.Group(); df.position.set(4.6, y0, -3.2); S.add(df);
-  cyl(0.03, 0.03, 1.0, MAT.walnut, 0, 0.5, 0, df, 6); boxA(-0.3, 0.3, 0, 0.04, -0.3, 0.3, MAT.walnut, df);
-  const torsoG = new THREE.LatheGeometry([[0.0, 0], [0.26, 0.02], [0.2, 0.3], [0.28, 0.62], [0.24, 0.78], [0.08, 0.86], [0.07, 0.95], [0.0, 0.96]].map(([r, h]) => new THREE.Vector2(r, h)), 14);
-  const torso = new THREE.Mesh(torsoG, mat('#8a7a6a', 0.85)); torso.scale.set(1, 1, 0.75); torso.position.y = 1.05; df.add(torso);
-  sphere(0.05, MAT.walnut, 0, 2.05, 0, df, 8, 6);
-  const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.62, 1.05, 16, 1, true), mat('#c9b8c8', 0.9, 0, { side: THREE.DoubleSide })); skirt.position.y = 0.58; df.add(skirt);
-  const sash = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.035, 5, 14), mat('#7a2a3a', 0.8)); sash.rotation.x = Math.PI / 2; sash.position.y = 1.36; df.add(sash);
+  if (!BK) {
+    const df = new THREE.Group(); df.position.set(4.6, y0, -3.2); S.add(df);
+    cyl(0.03, 0.03, 1.0, MAT.walnut, 0, 0.5, 0, df, 6); boxA(-0.3, 0.3, 0, 0.04, -0.3, 0.3, MAT.walnut, df);
+    const torsoG = new THREE.LatheGeometry([[0.0, 0], [0.26, 0.02], [0.2, 0.3], [0.28, 0.62], [0.24, 0.78], [0.08, 0.86], [0.07, 0.95], [0.0, 0.96]].map(([r, h]) => new THREE.Vector2(r, h)), 14);
+    const torso = new THREE.Mesh(torsoG, mat('#8a7a6a', 0.85)); torso.scale.set(1, 1, 0.75); torso.position.y = 1.05; df.add(torso);
+    sphere(0.05, MAT.walnut, 0, 2.05, 0, df, 8, 6);
+    const skirt = new THREE.Mesh(new THREE.ConeGeometry(0.62, 1.05, 16, 1, true), mat('#c9b8c8', 0.9, 0, { side: THREE.DoubleSide })); skirt.position.y = 0.58; df.add(skirt);
+    const sash = new THREE.Mesh(new THREE.TorusGeometry(0.21, 0.035, 5, 14), mat('#7a2a3a', 0.8)); sash.rotation.x = Math.PI / 2; sash.position.y = 1.36; df.add(sash);
+  }
   // rocking chair rocking by itself
   const rock = new THREE.Group(); rock.position.set(-3.4, y0, 0.0); rock.rotation.y = 0.6; rock.userData.keepGroup = true; S.add(rock);
   P.chair(rock, 0, 0.1, 0, 0, { seat: MAT.velvetRed, wood: MAT.walnut, back: 1.0 });
   for (const sx of [-0.27, 0.27]) { const rk = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.03, 4, 16, 0.9), MAT.walnut); rk.rotation.y = Math.PI / 2; rk.rotation.z = -Math.PI / 2 - 0.45; rk.position.set(sx, 1.12, 0); rock.add(rk); }
   onUpdate((t) => { rock.rotation.x = Math.sin(t * 1.6) * 0.13; });
   // birdcage
-  const bcg = new THREE.Group(); bcg.position.set(-1.4, y0, -3.7); S.add(bcg);
-  cyl(0.03, 0.03, 1.5, MAT.brass, 0, 0.75, 0, bcg, 5);
-  for (let k = 0; k < 10; k++) { const a = k / 10 * TAU; cyl(0.008, 0.008, 0.6, MAT.brass, Math.cos(a) * 0.25, 1.8, Math.sin(a) * 0.25, bcg, 3); }
-  const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 6, 0, TAU, 0, Math.PI / 2), mat('#a8844e', 0.4, 0.8, { side: THREE.DoubleSide })); dome.position.y = 2.1; bcg.add(dome);
-  cyl(0.26, 0.26, 0.04, MAT.brass, 0, 1.5, 0, bcg, 12);
+  if (!BK) {
+    const bcg = new THREE.Group(); bcg.position.set(-1.4, y0, -3.7); S.add(bcg);
+    cyl(0.03, 0.03, 1.5, MAT.brass, 0, 0.75, 0, bcg, 5);
+    for (let k = 0; k < 10; k++) { const a = k / 10 * TAU; cyl(0.008, 0.008, 0.6, MAT.brass, Math.cos(a) * 0.25, 1.8, Math.sin(a) * 0.25, bcg, 3); }
+    const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 6, 0, TAU, 0, Math.PI / 2), mat('#a8844e', 0.4, 0.8, { side: THREE.DoubleSide })); dome.position.y = 2.1; bcg.add(dome);
+    cyl(0.26, 0.26, 0.04, MAT.brass, 0, 1.5, 0, bcg, 12);
+  }
   // cobwebs in the corners
   P.cobweb(S, -12.0, 18.9, -3.0, 0.5, 1.6); P.cobweb(S, 12.0, 18.9, -3.0, -Math.PI / 2 - 0.3, 1.4); P.cobweb(S, -12.3, 16.0, 2.0, Math.PI / 2, 1.2);
   // floor-standing candles and a leaning mirror
-  P.candelabra(S, -1.0, y0, -2.8, { arms: 3, s: 0.9, m: MAT.flame });
-  P.candelabra(S, 3.2, y0, 0.4, { arms: 1, s: 1.2, m: MAT.flame });
-  const mir = new THREE.Group(); mir.position.set(11.6, y0, -1.0); mir.rotation.set(-0.15, -1.1, 0); S.add(mir);
-  boxA(-0.55, 0.55, 0, 1.9, -0.04, 0.04, MAT.gold, mir);
-  boxA(-0.45, 0.45, 0.1, 1.8, 0.04, 0.05, mat('#4a5070', 0.08, 0.9), mir);
-  P.rugPlane(S, 1.0, y0, -0.8, 3.2, 2.4, T.rugBlue);
+  if (!BK) {
+    P.candelabra(S, -1.0, y0, -2.8, { arms: 3, s: 0.9, m: MAT.flame });
+    P.candelabra(S, 3.2, y0, 0.4, { arms: 1, s: 1.2, m: MAT.flame });
+    const mir = new THREE.Group(); mir.position.set(11.6, y0, -1.0); mir.rotation.set(-0.15, -1.1, 0); S.add(mir);
+    boxA(-0.55, 0.55, 0, 1.9, -0.04, 0.04, MAT.gold, mir);
+    boxA(-0.45, 0.45, 0.1, 1.8, 0.04, 0.05, mat('#4a5070', 0.08, 0.9), mir);
+    P.rugPlane(S, 1.0, y0, -0.8, 3.2, 2.4, T.rugBlue);
+  }
   toBin(S);
   const beat = act(room, 'Listen to her heart', () => { brst.beat = 2.4; sfx('heartbeat'); say('Thump. Thump. Thump-thump.', { who: '' }); });
   hotspot(bride, 'attic', 'Listen to her heart', beat);

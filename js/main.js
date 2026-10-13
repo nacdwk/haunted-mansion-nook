@@ -23,17 +23,18 @@ async function boot() {
   W.classicFigures = query.get('figures') === '0';   // the older, simpler ghosts and caretaker, for comparison
   const timeout = (ms) => new Promise((_, no) => setTimeout(() => no(new Error('timed out')), ms));
   // the Blender-built sets download while everything else is set up. ?baked=0 shows the procedural house, and
-  // ?exterior=0, ?grounds=0, ?endless=0, ?conserv=0 or ?seance=0 the procedural version of just that set; it is also the fallback for any set that fails
+  // ?exterior=0, ?grounds=0, ?endless=0, ?conserv=0, ?seance=0 or ?attic=0 the procedural version of just that set; it is also the fallback for any set that fails
   const set = (m, name) => Promise.race([m.loadBakedSet(name), timeout(25000)])
     .catch((e) => { console.warn(`Baked ${name} unavailable, building the procedural one instead:`, e); return null; });
   const bakedSets = query.get('baked') === '0' ? null
     : import('./baked.js').then(async (m) => {
-      const [hall, exterior, grounds, endless, conserv, seance, figures] = await Promise.all([set(m, 'grandhall'), query.get('exterior') === '0' ? null : set(m, 'exterior'),
+      const [hall, exterior, grounds, endless, conserv, seance, attic, figures] = await Promise.all([set(m, 'grandhall'), query.get('exterior') === '0' ? null : set(m, 'exterior'),
         query.get('grounds') === '0' ? null : set(m, 'grounds'), query.get('endless') === '0' ? null : set(m, 'endless'),
         query.get('conserv') === '0' ? null : set(m, 'conserv'), query.get('seance') === '0' ? null : set(m, 'seance'),
+        query.get('attic') === '0' ? null : set(m, 'attic'),
         W.classicFigures ? null : Promise.race([m.loadFigures(), timeout(25000)]).catch((e) => { console.warn('Figures unavailable:', e); return null; })]);
       m.releaseLoaders();
-      return { m, hall, exterior, grounds, endless, conserv, seance, figures };
+      return { m, hall, exterior, grounds, endless, conserv, seance, attic, figures };
     }).catch((e) => { console.warn('Baked sets unavailable:', e); return null; });
   // the official portraits and wallpaper (js/art.js); ?art=0 shows the house's own painted versions
   const officialArt = query.get('art') === '0' ? null
@@ -113,6 +114,7 @@ async function boot() {
   W.bakedEndless = baked?.endless || null;
   W.bakedConserv = baked?.conserv || null;
   W.bakedSeance = baked?.seance || null;
+  W.bakedAttic = baked?.attic || null;
   W.figures = baked?.figures || null;
   const world = new THREE.Group(); world.name = 'world';
   scene.add(world);
@@ -130,6 +132,7 @@ async function boot() {
   if (W.bakedEndless) baked.m.addBakedEndless(world);
   if (W.bakedConserv) baked.m.addBakedConservatory(world);
   if (W.bakedSeance) baked.m.addBakedSeance(world);
+  if (W.bakedAttic) baked.m.addBakedAttic(world);
   status('Digging the graveyard…');
   await frame();
   buildOutside(world);
