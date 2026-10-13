@@ -279,32 +279,47 @@ function graveyard(S, G) {
   });
   const hitchFn = () => { hst.wave = 1.5; sfx('hitch'); W.ui?.hitchhiker?.(); say('One of them is coming home with you.', {}); };
   hikers.forEach((g) => hotspot(g, 'graveyard', 'Pick up a hitchhiker', hitchFn));
-  // the caretaker and his trembling dog
+  // the caretaker and his trembling dog: sculpted in blender/figures.py, one object per moving part (?figures=0
+  // shows the simpler ones built here)
+  const F = W.figures;
+  // keep/noCompact: the static-mesh merge would drop the baked ambient occlusion in their vertex colours
+  const fig = (name, parent) => {
+    const o = F[name].clone(); o.userData.keep = o.userData.noCompact = true;
+    o.traverse((m) => { if (m.isMesh) { m.castShadow = false; m.receiveShadow = true; } }); parent.add(o);
+  };
   const ct = new THREE.Group(); ct.position.set(20.6, 0, 5.2); ct.rotation.y = 0.9; G.add(ct);
   const coat = flat('#4a3a2e'), skin = flat('#d8b896');
   const legs = new THREE.Group(); legs.userData.keepGroup = true; ct.add(legs);
-  for (const sx of [-0.12, 0.12]) { cyl(0.07, 0.06, 0.7, flat('#2a2420'), sx, 0.35, 0, legs, 6); boxA(sx - 0.08, sx + 0.08, 0, 0.08, -0.05, 0.16, MAT.black, legs); }
+  if (F) fig('caretaker-legs', legs);
+  else for (const sx of [-0.12, 0.12]) { cyl(0.07, 0.06, 0.7, flat('#2a2420'), sx, 0.35, 0, legs, 6); boxA(sx - 0.08, sx + 0.08, 0, 0.08, -0.05, 0.16, MAT.black, legs); }
   const torso = new THREE.Group(); torso.position.y = 0.7; torso.userData.keepGroup = true; ct.add(torso);
-  const tb = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.32, 0.8, 8), coat); tb.position.y = 0.38; torso.add(tb);
   torso.rotation.x = 0.35;
-  const hd = sphere(0.17, skin, 0, 0.95, 0.08, torso, 8, 6);
-  sphere(0.06, flat('#c8987a'), 0, 0.93, 0.25, torso, 5, 4);
-  const hatB = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.03, 10), flat('#2a2018')); hatB.position.y = 1.08; torso.add(hatB);
-  const hatC = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.18, 10), flat('#2a2018')); hatC.position.y = 1.18; torso.add(hatC);
-  const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.05, 5, 10), flat('#7a1a22')); scarf.rotation.x = Math.PI / 2; scarf.position.y = 0.8; torso.add(scarf);
-  for (const sx of [-1, 1]) { const arm = cyl(0.05, 0.05, 0.55, coat, sx * 0.26, 0.45, 0.12, torso, 5); arm.rotation.x = -0.9; arm.rotation.z = sx * 0.15; }
+  if (F) fig('caretaker-torso', torso);
+  else {
+    const tb = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.32, 0.8, 8), coat); tb.position.y = 0.38; torso.add(tb);
+    sphere(0.17, skin, 0, 0.95, 0.08, torso, 8, 6);
+    sphere(0.06, flat('#c8987a'), 0, 0.93, 0.25, torso, 5, 4);
+    const hatB = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.03, 10), flat('#2a2018')); hatB.position.y = 1.08; torso.add(hatB);
+    const hatC = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.18, 10), flat('#2a2018')); hatC.position.y = 1.18; torso.add(hatC);
+    const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.05, 5, 10), flat('#7a1a22')); scarf.rotation.x = Math.PI / 2; scarf.position.y = 0.8; torso.add(scarf);
+    for (const sx of [-1, 1]) { const arm = cyl(0.05, 0.05, 0.55, coat, sx * 0.26, 0.45, 0.12, torso, 5); arm.rotation.x = -0.9; arm.rotation.z = sx * 0.15; }
+  }
   const lan = P.lantern(torso, 0.24, 0.2, 0.42, { s: 0.75 });
-  const ctLight = new THREE.PointLight(0xffb060, 8, 7, 1.6); ctLight.position.set(0.24, 1.2, 0.5); ct.add(ctLight);
+  // the sculpted coat reaches further forward than the old cone, so its light sits further out to keep off the chest
+  const ctLight = new THREE.PointLight(0xffb060, 8, 7, 1.6); ctLight.position.set(0.24, F ? 1.15 : 1.2, F ? 0.75 : 0.5); ct.add(ctLight);
   addLight(ctLight, { room: 'graveyard', flicker: 0.18, parent: ct });
   const dog = new THREE.Group(); dog.position.set(21.1, 0, 4.4); dog.rotation.y = 1.2; dog.userData.keepGroup = true; G.add(dog);
   const fur = flat('#4e463e');
-  const db = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.62, 6), fur); db.rotation.x = Math.PI / 2; db.position.set(0, 0.45, 0); dog.add(db);
-  for (const [lx, lz] of [[-0.07, 0.22], [0.07, 0.22], [-0.07, -0.22], [0.07, -0.22]]) cyl(0.02, 0.02, 0.42, fur, lx, 0.21, lz, dog, 4);
   const dh = new THREE.Group(); dh.position.set(0, 0.6, 0.32); dh.userData.keepGroup = true; dog.add(dh);
-  const snout = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 5), fur); snout.rotation.x = Math.PI / 2; snout.position.z = 0.12; dh.add(snout);
-  sphere(0.08, fur, 0, 0.02, 0, dh, 6, 5);
-  for (const sx of [-0.05, 0.05]) { const e = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.1, 3), fur); e.position.set(sx, 0.1, -0.03); e.rotation.x = -0.6; dh.add(e); }
-  const tail = cyl(0.012, 0.01, 0.3, fur, 0, 0.36, -0.36, dog, 3); tail.rotation.x = 0.9;
+  if (F) { fig('dog-body', dog); fig('dog-head', dh); }
+  else {
+    const db = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.62, 6), fur); db.rotation.x = Math.PI / 2; db.position.set(0, 0.45, 0); dog.add(db);
+    for (const [lx, lz] of [[-0.07, 0.22], [0.07, 0.22], [-0.07, -0.22], [0.07, -0.22]]) cyl(0.02, 0.02, 0.42, fur, lx, 0.21, lz, dog, 4);
+    const snout = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 5), fur); snout.rotation.x = Math.PI / 2; snout.position.z = 0.12; dh.add(snout);
+    sphere(0.08, fur, 0, 0.02, 0, dh, 6, 5);
+    for (const sx of [-0.05, 0.05]) { const e = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.1, 3), fur); e.position.set(sx, 0.1, -0.03); e.rotation.x = -0.6; dh.add(e); }
+    const tail = cyl(0.012, 0.01, 0.3, fur, 0, 0.36, -0.36, dog, 3); tail.rotation.x = 0.9;
+  }
   const cst = { fright: 0 };
   onUpdate((t, dt) => {
     cst.fright = Math.max(0, cst.fright - dt * 0.4);

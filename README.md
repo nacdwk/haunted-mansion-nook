@@ -88,10 +88,10 @@ Apart from the baked sets (the Grand Hall, the outside of the mansion and the gr
 | `js/audio.js` | The synthesizer, the score and sound effects |
 | `js/post.js` | Bloom, tilt-shift miniature blur and colour grade |
 | `js/ui.js` | Picking, hover labels, room panels, the dock, captions and the ride overlay |
-| `js/baked.js` | Loads the Blender-built Grand Hall, exterior and grounds and draws them with their baked light |
+| `js/baked.js` | Loads the Blender-built Grand Hall, exterior and grounds and draws them with their baked light, and loads the sculpted caretaker and dog |
 | `js/art.js` | Swaps in the official Stretching Room portraits and wallpaper and the Endless Hall wallpaper from `assets/art/`, when those files are present |
 | `tools/prepare_art.py` | Crops the portraits, cuts a seamless tile of the Endless Hall wallpaper and redraws the Stretching Room's stripes from the source images into `assets/art/` |
-| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`), the exterior and tower (`exterior.py`) and the grounds (`grounds.py`), their shared helpers (`kit.py`, and `trees.py` for the dead trees), the house's lights shared between the last two (`exterior_lights.json`), and `bake.sh` to rebuild `assets/` |
+| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`), the exterior and tower (`exterior.py`) and the grounds (`grounds.py`) and the caretaker and his dog (`figures.py`), their shared helpers (`kit.py`, and `trees.py` for the dead trees), the house's lights shared between the last two (`exterior_lights.json`), and `bake.sh` to rebuild `assets/` |
 
 A few techniques keep it running at 60 fps:
 
@@ -104,13 +104,13 @@ A few techniques keep it running at 60 fps:
 
 ## Baked sets (experiment)
 
-Three parts of the nook are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall, the outside of the mansion with its stretching tower, and the grounds around it. Everything else, including every resident and everything that moves, is still procedural.
+Three parts of the nook are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall, the outside of the mansion with its stretching tower, and the grounds around it. The caretaker and his dog are sculpted there too, as a pilot for the figures (see below). Everything else, including the other residents and everything that moves, is still procedural.
 
 - A Python script in `blender/` builds each set (`grand_hall.py`, `exterior.py` and `grounds.py`, with shared helpers in `kit.py` and `trees.py`) and removes faces nobody can see. It then bakes two lightmaps, warm (flames, lamps and lit windows) and cool (moonlight, sky and fill light), and exports Draco-compressed geometry. Thin ironwork is exported without a lightmap and lit live by the site, though it still shades the baked surfaces around it.
 - `js/baked.js` draws the sets with one cheap shader. It reads the lightmaps, maps the site's painted textures onto the surfaces and adds the lantern.
 - Because the two lightmaps are separate, the sets still dim for the lantern, flicker with the flames and flash with lightning. Their walls melt away with the facades, and the tower still stretches.
-- Rebuild a set with `blender/bake.sh grandhall`, `blender/bake.sh exterior` or `blender/bake.sh grounds` (after the exterior, whose house and lights it uses). Each takes under a minute on an M4 GPU and writes the web-ready files to `assets/`.
-- To compare, add `?baked=0` to the URL for the all-procedural nook, or `?exterior=0` or `?grounds=0` for the procedural version of just that set. If a baked set fails to load, the site builds the procedural version in its place.
+- Rebuild a set with `blender/bake.sh grandhall`, `blender/bake.sh exterior` or `blender/bake.sh grounds` (after the exterior, whose house and lights it uses), and the figures with `blender/bake.sh figures`. Each takes under a minute on an M4 GPU and writes the web-ready files to `assets/`.
+- To compare, add `?baked=0` to the URL for the all-procedural nook, or `?exterior=0` or `?grounds=0` for the procedural version of just that set, or `?figures=0` for the old caretaker, dog and ghosts. If a baked set fails to load, the site builds the procedural version in its place.
 
 ### The Grand Hall
 
@@ -154,7 +154,7 @@ The grounds are a set of their own: the graveyard's walls and railings, its tomb
 
 All four dead trees are grown in Blender by `blender/trees.py`, which replays the site's own random numbers to get the same branches. It grows a detailed tree on them: a twisting, ridged trunk on buttress roots, surface roots that sink into the lawn, knots and broken-off stubs, forks that split like real wood, and a finer crown of hooked twigs. The great oak by the tower gets the Spanish moss the site hangs on it. Twigs that would reach into the Doom Buggies' path are left off, and the trees nearest the house shadow its walls in the exterior's bake.
 
-Everything that moves stays procedural: the busts, the ghosts, the caretaker and his dog, the teapot, the teeter-totter's plank, the horse's harness, the lanterns and the jack-o'-lanterns. So do the painted epitaphs and the crypt's plaque, which sit on the baked stones. The tombstones' sizes and tilts now come from a table shared with the bake.
+Apart from the caretaker and his dog (below), everything that moves stays procedural: the busts, the ghosts, the teapot, the teeter-totter's plank, the horse's harness, the lanterns and the jack-o'-lanterns. So do the painted epitaphs and the crypt's plaque, which sit on the baked stones. The tombstones' sizes and tilts now come from a table shared with the bake.
 
 Measured the same way, one run each, with the Grand Hall baked and the official art in both columns:
 
@@ -166,6 +166,16 @@ Measured the same way, one run each, with the Grand Hall baked and the official 
 | Draw calls (with shadow pass) / triangles | 849 / 313k | 891 / 441k |
 
 The baked outside costs less to draw than the procedural one even with 40% more triangles, because its surfaces don't add up the lights for every pixel. The price, again, is download size.
+
+### The figures (pilot)
+
+![The caretaker and his dog, the organist and the bride, before and after](docs/figures-pilot.jpg)
+
+The caretaker and his dog are sculpted in Blender by `blender/figures.py`. He has a slouch hat, a scarf, a long coat with folds, gloves holding the lantern, and boots. The dog is a thin, nervous hound with drooping ears. They move, so instead of lightmaps they carry ambient occlusion baked into their vertex colours and are lit live by the lantern and the moon. His legs and body and the dog's body and head are separate objects, so they still tremble and look around. They come to 15,000 triangles and 90 KB (`assets/figures.glb`).
+
+The ghosts are still made in code, so they cost nothing to download, but from a new generator in `js/core.js`. Each has an egg-shaped head on a neck and sloping shoulders, and a robe with folds whose hem trails off into wisps. Sleeves on curved arms end in mitten hands, and the hats are sized to the head: top hats, bowlers, crowns, a bun, the bride's veil (open in front of her face) and the organist's hood. The 59 ghosts went from 33,000 to 179,000 triangles. Their geometry stays indexed, so each vertex is wobbled once rather than once for every triangle it touches.
+
+The difference shows most up close. From the default room views the ghosts look much as before, if a little brighter where they crowd together. In one headless Chrome run on an M4, at Retina size, a frame took 9.4 ms with the whole house in view, against 9.6 ms with the old figures, and 5.5 ms against 5.4 ms close up on the portico. `?figures=0` shows the old caretaker, dog and ghosts.
 
 ## Credits
 

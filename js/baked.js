@@ -53,6 +53,15 @@ export async function loadBakedSet(name) {
   return set;
 }
 
+// The sculpted figures (blender/figures.py): one object per moving part, in the frame js/outside.js animates it in,
+// each lit live with its ambient occlusion in its vertex colours. Returns { part name: object }.
+export async function loadFigures() {
+  const model = await loader().loadAsync(`${DIR}figures.glb`);
+  const parts = {};
+  for (const o of model.scene.children) if (o.name.startsWith('Fig_')) parts[o.name.slice(4)] = o;
+  return parts;
+}
+
 // albedo for each Blender material: a flat colour, or one of the site's painted textures mapped in world space.
 // metal: fake environment reflection; gloss: glints of the set's flames in polished surfaces; vein: marble.
 const HALL_LOOK = {

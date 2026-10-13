@@ -20,6 +20,7 @@ const frame = () => new Promise((r) => { let done = false; const go = () => { if
 async function boot() {
   W.state.reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const query = new URLSearchParams(location.search);
+  W.classicFigures = query.get('figures') === '0';   // the older, simpler ghosts and caretaker, for comparison
   const timeout = (ms) => new Promise((_, no) => setTimeout(() => no(new Error('timed out')), ms));
   // the Blender-built sets download while everything else is set up. ?baked=0 shows the procedural house, and
   // ?exterior=0 or ?grounds=0 the procedural version of just that set; it is also the fallback for any set that fails
@@ -27,10 +28,11 @@ async function boot() {
     .catch((e) => { console.warn(`Baked ${name} unavailable, building the procedural one instead:`, e); return null; });
   const bakedSets = query.get('baked') === '0' ? null
     : import('./baked.js').then(async (m) => {
-      const [hall, exterior, grounds] = await Promise.all([set(m, 'grandhall'), query.get('exterior') === '0' ? null : set(m, 'exterior'),
-        query.get('grounds') === '0' ? null : set(m, 'grounds')]);
+      const [hall, exterior, grounds, figures] = await Promise.all([set(m, 'grandhall'), query.get('exterior') === '0' ? null : set(m, 'exterior'),
+        query.get('grounds') === '0' ? null : set(m, 'grounds'),
+        W.classicFigures ? null : Promise.race([m.loadFigures(), timeout(25000)]).catch((e) => { console.warn('Figures unavailable:', e); return null; })]);
       m.releaseLoaders();
-      return { m, hall, exterior, grounds };
+      return { m, hall, exterior, grounds, figures };
     }).catch((e) => { console.warn('Baked sets unavailable:', e); return null; });
   // the official portraits and wallpaper (js/art.js); ?art=0 shows the house's own painted versions
   const officialArt = query.get('art') === '0' ? null
@@ -107,6 +109,7 @@ async function boot() {
   W.bakedHall = baked?.hall || null;
   W.bakedExterior = baked?.exterior || null;
   W.bakedGrounds = baked?.grounds || null;
+  W.figures = baked?.figures || null;
   const world = new THREE.Group(); world.name = 'world';
   scene.add(world);
   W.world = world;
