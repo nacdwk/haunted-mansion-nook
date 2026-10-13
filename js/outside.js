@@ -232,7 +232,7 @@ function graveyard(S, G) {
   }
   // singing busts
   const busts = [];
-  const hats = ['top', 'bowler', null, 'curls', 'laurel'];
+  const hats = ['top', 'bowler', 'bun', 'curls', 'laurel'];
   const roles = ['the tenor', 'the baritone', 'the alto', 'the basso', 'the soprano'];
   for (let i = 0; i < 5; i++) {
     const x = 24.3 + i * 1.35, z = 1.0 + Math.sin(i * 1.7) * 0.25;
@@ -281,12 +281,7 @@ function graveyard(S, G) {
   hikers.forEach((g) => hotspot(g, 'graveyard', 'Pick up a hitchhiker', hitchFn));
   // the caretaker and his trembling dog: sculpted in blender/figures.py, one object per moving part (?figures=0
   // shows the simpler ones built here)
-  const F = W.figures;
-  // keep/noCompact: the static-mesh merge would drop the baked ambient occlusion in their vertex colours
-  const fig = (name, parent) => {
-    const o = F[name].clone(); o.userData.keep = o.userData.noCompact = true;
-    o.traverse((m) => { if (m.isMesh) { m.castShadow = false; m.receiveShadow = true; } }); parent.add(o);
-  };
+  const F = W.figures, fig = P.figure;
   const ct = new THREE.Group(); ct.position.set(20.6, 0, 5.2); ct.rotation.y = 0.9; G.add(ct);
   const coat = flat('#4a3a2e'), skin = flat('#d8b896');
   const legs = new THREE.Group(); legs.userData.keepGroup = true; ct.add(legs);
