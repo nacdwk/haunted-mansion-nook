@@ -1,0 +1,47 @@
+{
+ "triangles": 21345,
+ "groups": [
+  "main",
+  "back"
+ ],
+ "lit": [],
+ "materials": [
+  "brass",
+  "c_floor",
+  "c_paper",
+  "c_runner",
+  "c_wainscot",
+  "ceiling",
+  "checker",
+  "crystal",
+  "gilt",
+  "marble_dark",
+  "mirror",
+  "plaster",
+  "rug",
+  "stone_dark",
+  "void",
+  "wainscot",
+  "wallpaper",
+  "walnut",
+  "wax"
+ ],
+ "samples": 256,
+ "warm": {
+  "scale": 11.561296463012695,
+  "size": 2048,
+  "seconds": 20.8,
+  "mean": 0.4404072165489197,
+  "p50": 0.15210013091564178,
+  "clipped": 0.0008647441864013672
+ },
+ "cool": {
+  "scale": 1.1662973165512085,
+  "size": 1536,
+  "seconds": 6.9,
+  "mean": 0.12508757412433624,
+  "p50": 0.05552929639816284,
+  "clipped": 0.00021913316514756944
+ },
+ "seconds": 32.9
+}

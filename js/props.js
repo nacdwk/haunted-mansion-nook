@@ -380,14 +380,17 @@ export function sconce(parent, x, y, z, ry = 0, { m = MAT.flame, metal = MAT.bra
   const f = candle(g, 0, 0.05, 0.28, { h: 0.22, m });
   return { g, flame: f };
 }
-// a classic grandfather clock with 13 hours; returns hands
-export function grandfatherClock(parent, x, y, z, ry = 0) {
+// a classic grandfather clock with 13 hours; returns hands. body: false leaves the case to a baked set (the dial,
+// hands and pendulum are still drawn here)
+export function grandfatherClock(parent, x, y, z, ry = 0, { body = true } = {}) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.userData.keepGroup = true; parent.add(g);
   const wood = MAT.walnut;
-  boxA(-0.45, 0.45, 0, 0.5, -0.25, 0.25, wood, g);
-  boxA(-0.36, 0.36, 0.5, 2.3, -0.2, 0.2, wood, g);
-  boxA(-0.46, 0.46, 2.3, 3.25, -0.26, 0.26, wood, g);
-  const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.2, 3, 1), wood); crown.rotation.set(Math.PI / 2, 0, Math.PI / 2); crown.position.set(0, 3.4, 0); crown.scale.set(1, 1, 0.6); g.add(crown);
+  if (body) {
+    boxA(-0.45, 0.45, 0, 0.5, -0.25, 0.25, wood, g);
+    boxA(-0.36, 0.36, 0.5, 2.3, -0.2, 0.2, wood, g);
+    boxA(-0.46, 0.46, 2.3, 3.25, -0.26, 0.26, wood, g);
+    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.2, 3, 1), wood); crown.rotation.set(Math.PI / 2, 0, Math.PI / 2); crown.position.set(0, 3.4, 0); crown.scale.set(1, 1, 0.6); g.add(crown);
+  }
   const face = mesh(new THREE.CircleGeometry(0.36, 28), new THREE.MeshStandardMaterial({ map: T.clock, roughness: 0.6, emissiveMap: T.clock, emissive: 0xffffff, emissiveIntensity: 0.15 }), 0, 2.78, 0.265, g);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.37, 0.03, 6, 28), MAT.gold); ring.position.set(0, 2.78, 0.27); g.add(ring);
   const hour = new THREE.Group(); hour.position.set(0, 2.78, 0.28); hour.userData.keepGroup = true; g.add(hour);
@@ -410,12 +413,15 @@ export function grandfatherClock(parent, x, y, z, ry = 0) {
   return { g, st };
 }
 // a paneled door with a knocker; returns the slab (for bulging/knocking)
+// frame: null leaves the frame to a baked set
 export function door(parent, x, y, z, ry = 0, { w = 1.4, h = 3.1, wood = MAT.mahogany, frame = MAT.gold } = {}) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.userData.keepGroup = true; parent.add(g);
-  boxA(-w / 2 - 0.16, -w / 2, 0, h + 0.16, 0, 0.12, frame, g);
-  boxA(w / 2, w / 2 + 0.16, 0, h + 0.16, 0, 0.12, frame, g);
-  boxA(-w / 2 - 0.16, w / 2 + 0.16, h, h + 0.16, 0, 0.12, frame, g);
-  boxA(-w / 2 - 0.3, w / 2 + 0.3, h + 0.16, h + 0.32, -0.02, 0.2, frame, g);
+  if (frame) {
+    boxA(-w / 2 - 0.16, -w / 2, 0, h + 0.16, 0, 0.12, frame, g);
+    boxA(w / 2, w / 2 + 0.16, 0, h + 0.16, 0, 0.12, frame, g);
+    boxA(-w / 2 - 0.16, w / 2 + 0.16, h, h + 0.16, 0, 0.12, frame, g);
+    boxA(-w / 2 - 0.3, w / 2 + 0.3, h + 0.16, h + 0.32, -0.02, 0.2, frame, g);
+  }
   const slabP = new THREE.Group(); slabP.position.set(0, 0, 0.02); slabP.userData.keepGroup = true; g.add(slabP);
   const slab = new THREE.Group(); slab.userData.keepGroup = true; slabP.add(slab);
   boxA(-w / 2, w / 2, 0, h, 0, 0.07, wood, slab);

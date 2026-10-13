@@ -241,6 +241,7 @@ export function buildShell(root) {
   const { F1, F2, AT } = D;
   const facades = {};
   const bare = !!W.bakedHall; // the baked Grand Hall brings its own wall dressing
+  const endless = !!W.bakedEndless; // and the baked Endless Hall its own, its floor, the arch and the corridor beyond
   const ext = !!W.bakedExterior; // and the baked exterior its own siding, trim, portico and doors (js/baked.js)
   const siding = (L) => (ext ? [] : [{ u0: 0, u1: L, v0: F1, v1: AT, mat: MAT.siding }]);
   const ROOM = { lib: [0, 9.33], foy: [9.33, 18.67], con: [18.67, 28] };
@@ -330,7 +331,7 @@ export function buildShell(root) {
       outer: siding(28),
       inner: [
         { u0: 0, u1: 9.33, v0: F1, v1: 7.0, mat: MAT.papConserv, wainscot: 1.6 },
-        { u0: 9.33, u1: 18.67, v0: F1, v1: 7.0, mat: MAT.papEyes, wainscot: 2.0, wmat: MAT.wainscotDark },
+        { u0: 9.33, u1: 18.67, v0: F1, v1: 7.0, mat: MAT.papEyes, wainscot: 2.0, wmat: MAT.wainscotDark, bare: endless },
         { u0: 18.67, u1: 28, v0: F1, v1: 7.0, mat: MAT.papLibrary, wainscot: 2.0 },
         { u0: 0, u1: 9.33, v0: F2, v1: 13.6, mat: MAT.papSeance, wainscot: 1.8 },
         { u0: 9.33, u1: 28, v0: F2, v1: 13.6, mat: MAT.papBall, wainscot: 2.2, crown: MAT.gold, bare },
@@ -347,7 +348,7 @@ export function buildShell(root) {
     gp.renderOrder = 2;
     // arch trim around the hallway opening (inside face)
     const a = op[1];
-    for (let i = 0; i <= 8; i++) {
+    if (!endless) for (let i = 0; i <= 8; i++) {
       const ang = Math.PI * i / 8;
       const b = box(0.4, 0.25, 0.2, MAT.gold, (a.u0 + a.u1) / 2 + Math.cos(ang) * 1.5, a.v1 - 0.9 + Math.sin(ang) * 0.95, -0.5, G);
       b.rotation.z = ang + Math.PI / 2;
@@ -422,7 +423,7 @@ export function buildShell(root) {
   for (const [x, z] of [[-10.9, 2.0], [-10.9, 4.6], [-13.4, 2.0]]) { cyl(0.07, 0.07, 1.0, MAT.gold, x, F1 + 0.5, z, S, 8); sphere(0.11, MAT.gold, x, F1 + 1.02, z, S, 8, 6); }
   boxA(-13.4, -10.9, F1 + 0.95, F1 + 1.02, 1.97, 2.03, MAT.gold, S);
   boxA(-10.93, -10.87, F1 + 0.95, F1 + 1.02, 2.0, 4.6, MAT.gold, S);
-  boxA(-4.67, 4.67, 0.42, F1, -4.6, 4.6, MAT.checker, S);
+  if (!endless) boxA(-4.67, 4.67, 0.42, F1, -4.6, 4.6, MAT.checker, S);
   boxA(4.67, 13.6, 0.42, F1, -4.6, 4.6, MAT.checkerGreen, S);
   // F2 slab (ceiling of F1, floor of F2)
   boxA(-13.6, 13.6, 7.0, 7.32, -4.6, 4.6, MAT.plaster, S);
@@ -445,16 +446,16 @@ export function buildShell(root) {
     boxA(13.58, 13.7, y0, y1, -4.6, 4.7, MAT.walnut, S);
   }
   // partitions (never dissolve)
-  const part = (x, v0, v1, op, leftMat, rightMat, lw, rw, bareLeft = false) => {
+  const part = (x, v0, v1, op, leftMat, rightMat, lw, rw, bareLeft = false, bareRight = false) => {
     const g = buildWall({
       openings: op, t: 0.4, split: 0.2,
-      outer: [{ u0: 0, u1: 9.2, v0, v1, mat: rightMat }],
+      outer: [{ u0: 0, u1: 9.2, v0, v1, mat: bareRight ? MAT.walnut : rightMat }],
       inner: [{ u0: 0, u1: 9.2, v0, v1: v1 - 0.0, mat: leftMat, wainscot: lw, bare: bareLeft }],
       trims: true,
     });
     // add the right-side trims manually (buildWall trims only the inner side)
-    for (const r of subtractRects(0, 9.2, v0, v0 + 0.32, op)) boxA(r.u0, r.u1, r.v0, r.v1, 0, 0.05, MAT.walnut, g);
-    if (rw) {
+    if (!bareRight) for (const r of subtractRects(0, 9.2, v0, v0 + 0.32, op)) boxA(r.u0, r.u1, r.v0, r.v1, 0, 0.05, MAT.walnut, g);
+    if (rw && !bareRight) {
       for (const r of subtractRects(0, 9.2, v0, v0 + rw.h, op)) boxA(r.u0, r.u1, r.v0, r.v1, 0, 0.03, rw.mat, g);
       for (const r of subtractRects(0, 9.2, v0 + rw.h, v0 + rw.h + 0.12, op)) boxA(r.u0, r.u1, r.v0, r.v1, 0, 0.07, MAT.walnut, g);
     }
@@ -463,8 +464,8 @@ export function buildShell(root) {
     return g;
   };
   const doorF1 = [{ u0: -0.1, u1: 2.3, v0: F1, v1: 4.4 }];
-  part(-4.67, F1, 7.0, doorF1, MAT.papLibrary, MAT.papEyes, 2.0, { h: 2.0, mat: MAT.wainscotDark });
-  part(4.67, F1, 7.0, doorF1, MAT.papEyes, MAT.papConserv, 2.0, { h: 1.6, mat: MAT.wainscot });
+  part(-4.67, F1, 7.0, doorF1, MAT.papLibrary, MAT.papEyes, 2.0, { h: 2.0, mat: MAT.wainscotDark }, false, endless);
+  part(4.67, F1, 7.0, doorF1, MAT.papEyes, MAT.papConserv, 2.0, { h: 1.6, mat: MAT.wainscot }, endless);
   part(4.67, F2, 13.6, [{ u0: 6.9, u1: 9.3, v0: F2, v1: 11.0 }], MAT.papBall, MAT.papSeance, 2.2, { h: 1.8, mat: MAT.wainscot }, bare);
   // door casings for the track openings in partitions
   for (const x of [-4.67, 4.67]) {
@@ -474,7 +475,7 @@ export function buildShell(root) {
   boxA(4.37, 4.97, 11.0, 11.35, -4.6, -2.15, MAT.gold, S);
   boxA(4.37, 4.97, F2, 11.0, -2.35, -2.15, MAT.gold, S);
   // endless hallway annex (forced perspective) behind the foyer
-  buildEndlessHall(S);
+  if (!endless) buildEndlessHall(S);
   toBin(S);
   return {};
 }

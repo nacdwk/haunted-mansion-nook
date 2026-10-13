@@ -1,5 +1,6 @@
-// Sets modelled in Blender and lit with Cycles: the Grand Hall (blender/grand_hall.py), the mansion's exterior
-// (blender/exterior.py) and the grounds round it (blender/grounds.py). Each set's light is baked into two lightmaps, warm and cool. Keeping them
+// Sets modelled in Blender and lit with Cycles: the Grand Hall (blender/grand_hall.py), the Endless Hall
+// (blender/endless_hall.py), the mansion's exterior (blender/exterior.py) and the grounds round it (blender/grounds.py).
+// Each set's light is baked into two lightmaps, warm and cool. Keeping them
 // apart lets the set still dim for the lantern, brighten on hover, flicker and flash with lightning. Surfaces
 // are otherwise unlit, apart from the lantern, glints of the flames in polished surfaces and a cheap fake
 // reflection on metals, so they cost less to draw than the procedural sets they replace.
@@ -19,6 +20,7 @@ const num = (k, d) => parseFloat(Q.get(k) || d);
 // bake folds the sky light into its cool map assuming kc = 0.5 (COOL_K in blender/grand_hall.py).
 const KW = num('kw', '0.34'), KC = num('kc', '0.5');
 const EXT_KW = num('ekw', '0.3'), EXT_KC = num('ekc', '0.65');   // matched to the procedural facades' brightness and colour
+const END_KW = num('nkw', '0.34'), END_KC = num('nkc', '0.5');
 
 let gltf = null;
 function loader() {
@@ -88,6 +90,19 @@ const GROUNDS_LOOK = {
   gold: { color: '#c9a24a', metal: 1 }, black: { color: '#26212c', gloss: 0.3 }, plume: { color: '#221c27' }, walnut: { color: '#2a170d', gloss: 0.2 },
   mahogany: { color: '#4a1e14', gloss: 0.25 }, velvet: { color: '#5e1426' }, cloth: { color: '#a99fb8' }, void: { color: '#050308' },
 };
+// the Endless Hall: the official wallpaper (or the house's own) with its eyes glowing, as the room's material has
+// them; down the corridor every texture shrinks with it, as if it ran on straight (warp() in blender/endless_hall.py:
+// from z0 to z1 it shrinks to s1 about the floor at y0, standing for a corridor len long)
+const TAPER = [-5.0, -7.9, 0.66 / 2.8, 0.8, 16];   // z0, z1, s1, y0, len
+const ENDLESS_LOOK = {
+  wallpaper: { mat: 'papEyes', glow: true }, wainscot: { map: 'wainscotDark', uv: 2.4, gloss: 0.15 }, walnut: { color: '#2a170d', gloss: 0.2 },
+  gilt: { color: '#c9a24a', metal: 1 }, brass: { color: '#a8844e', metal: 1 }, plaster: { map: 'plaster', uv: 3 }, ceiling: { map: 'plaster', uv: 6 },
+  checker: { map: 'checker', uv: 4, gloss: 0.5 }, marble_dark: { color: '#2e2834', gloss: 0.4, vein: 1 }, rug: { map: 'rugPurple', rug: [-0.9, 4.4, 1.8, 8.8] },
+  wax: { color: '#efe6cf' }, crystal: { color: '#cfe8ff', metal: 0.6 }, mirror: { color: '#3a3e5a', metal: 1 }, void: { color: '#050308' },
+  stone_dark: { map: 'stoneDark', uv: 3.5 },
+  c_paper: { mat: 'papEyes', glow: true, taper: TAPER }, c_wainscot: { map: 'wainscotDark', uv: 2.4, gloss: 0.15, taper: TAPER },
+  c_runner: { map: 'rugRed', uv: 2.2, taper: TAPER }, c_floor: { map: 'woodDark', uv: 3, gloss: 0.2, taper: TAPER },
+};
 // the Grand Hall's brightest flames, which polished surfaces pick up as glints: position and strength
 const HALL_GLINTS = [[-5.0, 12.5, 1.6, 7], [-10.3, 7.9, -4.1, 5], [-6.4, 9.1, -0.45, 2.2], [-2.8, 9.1, -0.45, 2.2],
   [4.17, 10.6, 0.0, 1.4], [4.17, 10.6, 3.0, 1.4], [-12.4, 11.2, -4.28, 1.4], [-4.6, 9.3, -0.55, 1.2]];
@@ -103,11 +118,11 @@ const VERT = /* glsl */`
     gl_Position = projectionMatrix * viewMatrix * wp;
   }`;
 const FRAG = /* glsl */`
-  uniform sampler2D uWarm, uCool, uMap;
-  uniform vec3 uColor, uWarmK, uCoolK, uLampPos, uLampDir, uLampCol, uEdge, uHot, uHotCol, uEnvLow, uEnvHigh;
+  uniform sampler2D uWarm, uCool, uMap, uGlowMap;
+  uniform vec3 uColor, uWarmK, uCoolK, uLampPos, uLampDir, uLampCol, uEdge, uHot, uHotCol, uEnvLow, uEnvHigh, uGlowCol;
   uniform vec2 uLampCone, uUv;
-  uniform vec4 uRug, uFire, uGlints[${MAX_GLINTS}];
-  uniform float uMode, uMetal, uGloss, uVein, uGlintK, uDissolve, uDebug;
+  uniform vec4 uRug, uFire, uGlints[${MAX_GLINTS}], uTaper;
+  uniform float uMode, uMetal, uGloss, uVein, uGlintK, uDissolve, uDebug, uTaperLen, uGlowK;
   varying vec2 vLm; varying vec3 vW; varying vec3 vN;
   ${NOISE_GLSL}
   void main() {
@@ -121,10 +136,17 @@ const FRAG = /* glsl */`
       dEdge = 1.0 - smoothstep(0.0, 0.045, dn - thr);
     }
     vec3 albedo = uColor;
+    vec3 P = vW;
+    if (uTaperLen > 0.0 && vW.z < uTaper.x) {   // a forced-perspective corridor: textures as if it ran on straight
+      float c = (uTaper.x - vW.z) / (uTaper.x - uTaper.y) * uTaperLen;
+      float s = mix(1.0, uTaper.z, c / uTaperLen);
+      P = vec3(vW.x / s, uTaper.w + (vW.y - uTaper.w) / s, uTaper.x - c);
+    }
+    vec2 tuv = vec2(0.0);
     if (uMode > 1.5) albedo *= texture2D(uMap, vec2(vW.x - uRug.x, uRug.y - vW.z) / uRug.zw).rgb;
     else if (uMode > 0.5) {           // box-mapped by the facet's dominant axis, like worldUV() in core.js
       vec3 fn = abs(cross(dFdx(vW), dFdy(vW)));
-      vec2 tuv = fn.x >= fn.y && fn.x >= fn.z ? vW.zy : (fn.y >= fn.z ? vW.xz : vW.xy);
+      tuv = fn.x >= fn.y && fn.x >= fn.z ? P.zy : (fn.y >= fn.z ? P.xz : P.xy);
       albedo *= texture2D(uMap, tuv / uUv).rgb;
     }
     if (uVein > 0.0) {                // marble veins
@@ -163,6 +185,7 @@ const FRAG = /* glsl */`
       }
       col += vec3(1.0, 0.7, 0.4) * (g * uGloss * fres * uGlintK);
     }
+    if (uGlowK > 0.0) col += texture2D(uGlowMap, tuv / uUv).rgb * uGlowCol * uGlowK;   // the wallpaper's eyes
     col += uEdge * dEdge;
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
@@ -216,14 +239,20 @@ function attach(set, shared, looks, place) {
     const key = `${name}|${wall}`;
     if (cache.has(key)) return cache.get(key);
     const look = looks[name] || { color: '#808080' };
+    const src = look.mat ? MAT[look.mat] : null;      // a site material lends its texture and scale (the official wallpaper)
+    const uv = src?.userData.uvScale ?? look.uv ?? 1;
+    const glowK = { value: 0 };
+    if (look.glow && src?.emissiveMap) onUpdate(() => { glowK.value = src.emissiveIntensity; });
     const m = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
       uniforms: {
         ...shared, ...dis,
-        uMap: { value: (look.map && T[look.map]) || WHITE }, uMode: { value: look.rug ? 2 : look.map ? 1 : 0 },
-        uColor: { value: new THREE.Color(look.color || '#ffffff') }, uUv: { value: new THREE.Vector2(look.uv || 1, look.uv || 1) },
+        uMap: { value: src?.map || (look.map && T[look.map]) || WHITE }, uMode: { value: look.rug ? 2 : (look.map || src) ? 1 : 0 },
+        uColor: { value: new THREE.Color(look.color || '#ffffff') }, uUv: { value: new THREE.Vector2(...(Array.isArray(uv) ? uv : [uv, uv])) },
         uRug: { value: new THREE.Vector4(...(look.rug || [0, 0, 1, 1])) }, uMetal: { value: look.metal || 0 },
         uGloss: { value: look.gloss || 0 }, uVein: { value: look.vein || 0 },
+        uTaper: { value: new THREE.Vector4(...(look.taper || [0, 0, 1, 0]).slice(0, 4)) }, uTaperLen: { value: look.taper ? look.taper[4] : 0 },
+        uGlowMap: { value: (look.glow && src?.emissiveMap) || WHITE }, uGlowCol: { value: look.glow && src ? src.emissive.clone() : new THREE.Color(0) }, uGlowK: glowK,
       },
     });
     m.name = `${set.name}:${name}`;
@@ -280,6 +309,30 @@ export function addBakedHall(root) {
     shared.uFire.value.w = 0.7 * (noise1(t * 7 + 11.3) - 0.5);
   });
   W.bakedGroup = G;
+  return G;
+}
+
+// ---------------------------------------------------------------- the Endless Hall
+// Its back wall melts with the back facade; the room and the corridor stay put. Like the Grand Hall's, its light
+// follows the room's (hovering brightens it, the lantern dims it), flickers with the candles and flashes with lightning.
+export function addBakedEndless(root) {
+  const H = W.bakedEndless;
+  const chandelier = H.flames.filter((f) => f.p.y > 5.8).map((f) => [f.p.x, f.p.y, f.p.z, 1.6]);   // glints in the polished floor
+  const shared = sharedUniforms(H, { hot: [0, 5.9, 0.6], hotCol: [2.6, 1.8, 1.0], envLow: [0.05, 0.035, 0.05], envHigh: [0.6, 0.42, 0.28], glints: chandelier });
+  const G = new THREE.Group(); G.name = 'bakedEndless'; G.userData.noCompact = true;
+  root.add(G);
+  attach(H, shared, ENDLESS_LOOK, (name) => (name === 'End_back' ? { dissolver: 'back' } : name.startsWith('End_') ? { parent: G } : null));
+  for (const f of H.flames) P.flame(G, f.p.x, f.p.y, f.p.z, f.s);
+  onUpdate((t) => {
+    const room = W.rooms.hall;
+    const mul = (room ? room.lightMul : 1) * W.lightMul;
+    const flick = 0.95 + 0.05 * (0.65 * noise1(t * 6 + 7.7) + 0.35 * (0.5 + 0.5 * Math.sin(t * 10.3 + 2.1)));
+    const storm = W.fx?.stormK || 0, flash = W.U.uFlash.value;
+    shared.uWarmK.value.setScalar(H.meta.warm.scale * END_KW * flick * mul);
+    shared.uGlintK.value = flick * mul;
+    shared.uCoolK.value.setScalar(H.meta.cool.scale * END_KC * mul * (1 - storm * 0.25) * (1 + flash * 2.5));
+  });
+  W.bakedEndlessGroup = G;
   return G;
 }
 

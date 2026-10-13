@@ -88,10 +88,10 @@ Apart from the baked sets (the Grand Hall, the outside of the mansion and the gr
 | `js/audio.js` | The synthesizer, the score and sound effects |
 | `js/post.js` | Bloom, tilt-shift miniature blur and colour grade |
 | `js/ui.js` | Picking, hover labels, room panels, the dock, captions and the ride overlay |
-| `js/baked.js` | Loads the Blender-built Grand Hall, exterior and grounds and draws them with their baked light, and loads the sculpted figures |
+| `js/baked.js` | Loads the Blender-built Grand Hall, Endless Hall, exterior and grounds and draws them with their baked light, and loads the sculpted figures |
 | `js/art.js` | Swaps in the official Stretching Room portraits and wallpaper and the Endless Hall wallpaper from `assets/art/`, when those files are present |
 | `tools/prepare_art.py` | Crops the portraits, cuts a seamless tile of the Endless Hall wallpaper and redraws the Stretching Room's stripes from the source images into `assets/art/` |
-| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`), the exterior and tower (`exterior.py`) and the grounds (`grounds.py`) and the solid figures (`figures.py`), their shared helpers (`kit.py`, and `trees.py` for the dead trees), the house's lights shared between the last two (`exterior_lights.json`), and `bake.sh` to rebuild `assets/` |
+| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`), the Endless Hall (`endless_hall.py`), the exterior and tower (`exterior.py`) and the grounds (`grounds.py`) and the solid figures (`figures.py`), their shared helpers (`kit.py`, and `trees.py` for the dead trees), the house's lights shared between the last two (`exterior_lights.json`), and `bake.sh` to rebuild `assets/` |
 
 A few techniques keep it running at 60 fps:
 
@@ -104,13 +104,13 @@ A few techniques keep it running at 60 fps:
 
 ## Baked sets (experiment)
 
-Three parts of the nook are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall, the outside of the mansion with its stretching tower, and the grounds around it. The solid figures are sculpted there too: the caretaker and his dog, the marble busts, the raven, the coffin's bony hands and Madame Leota (see below), and so is the ghost dog's shape. Everything else, including the other ghosts and the other things that move, is still procedural.
+Four parts of the nook are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall, the Endless Hall, the outside of the mansion with its stretching tower, and the grounds around it. The solid figures are sculpted there too: the caretaker and his dog, the marble busts, the raven, the coffin's bony hands and Madame Leota (see below), and so is the ghost dog's shape. Everything else, including the other ghosts and the other things that move, is still procedural.
 
 - A Python script in `blender/` builds each set (`grand_hall.py`, `exterior.py` and `grounds.py`, with shared helpers in `kit.py` and `trees.py`) and removes faces nobody can see. It then bakes two lightmaps, warm (flames, lamps and lit windows) and cool (moonlight, sky and fill light), and exports Draco-compressed geometry. Thin ironwork is exported without a lightmap and lit live by the site, though it still shades the baked surfaces around it.
 - `js/baked.js` draws the sets with one cheap shader. It reads the lightmaps, maps the site's painted textures onto the surfaces and adds the lantern.
 - Because the two lightmaps are separate, the sets still dim for the lantern, flicker with the flames and flash with lightning. Their walls melt away with the facades, and the tower still stretches.
-- Rebuild a set with `blender/bake.sh grandhall`, `blender/bake.sh exterior` or `blender/bake.sh grounds` (after the exterior, whose house and lights it uses), and the figures with `blender/bake.sh figures`. Each takes under a minute on an M4 GPU and writes the web-ready files to `assets/`.
-- To compare, add `?baked=0` to the URL for the all-procedural nook, or `?exterior=0` or `?grounds=0` for the procedural version of just that set, or `?figures=0` for the old figures and ghosts. If a baked set fails to load, the site builds the procedural version in its place.
+- Rebuild a set with `blender/bake.sh grandhall`, `blender/bake.sh endless`, `blender/bake.sh exterior` or `blender/bake.sh grounds` (after the exterior, whose house and lights it uses), and the figures with `blender/bake.sh figures`. Each takes under a minute on an M4 GPU and writes the web-ready files to `assets/`.
+- To compare, add `?baked=0` to the URL for the all-procedural nook, or `?endless=0`, `?exterior=0` or `?grounds=0` for the procedural version of just that set, or `?figures=0` for the old figures and ghosts. If a baked set fails to load, the site builds the procedural version in its place.
 
 ### The Grand Hall
 
@@ -129,6 +129,27 @@ Measured in headless Chrome on an M4 MacBook, against the same views in the proc
 | Draw calls (with shadow pass) / triangles | 659 / 248k | 668 / 274k |
 
 The baked hall has more geometry but costs less to draw where it fills the screen, because its surfaces don't add up a dozen point lights for every pixel. The price is download size.
+
+### The Endless Hall
+
+![The Endless Hall from the ride, its back wall, its doors and the room from outside: procedural and baked](docs/endless-hall-baked.jpg)
+
+The middle room of the ground floor, where the candelabra floats, is a set of its own (`blender/endless_hall.py`).
+- **The walls.** The back wall and both partitions have a baseboard, raised-panel wainscot under a chair rail, the wallpaper (the official one when it's there, with its eyes still glowing and breathing), a picture rail, a plaster frieze and a deep cornice with a gilt bead.
+- **The arch.** The opening to the corridor is round-headed now, with a gilded archivolt, a keystone and pilasters with gilt capitals.
+- **The furnishings.** The knocking doors have moulded architraves on plinth blocks, a frieze, a cornice and a pediment with a gilt rosette. The clock with thirteen hours has a proper case: bracket feet, a panelled plinth, quarter columns on the trunk, a gilt frame round the pendulum's window, columns beside the dial and a domed hood with finials.
+- **Light and floor.** A brass chandelier hangs from a plaster rosette on a chain, with eight scrolled arms, candles and crystal drops. There are brass sconces, a gilt mirror, a checker floor inside a dark marble border with a brass inlay, and the purple rug.
+- **The corridor.** The corridor behind the arch is a run of nine gilded arches with panelled walls, wallpaper, a ceiling, sconces and a runner down to a door that never opens. It is modelled as a straight hall 16 units long and then squeezed into the 2.9 the house has behind its back wall, shrinking towards the far end as the old corridor did. The site shrinks its textures with it, so the wallpaper and the runner read as if the corridor ran on straight.
+- **Still procedural.** The front wall stays procedural, as in the Grand Hall: it melts away when the house opens, and the ride faces the other way. So do the doors themselves, which still bulge and knock, the clock's dial, hands and pendulum, and the floating candelabra.
+
+Measured the same way, one run each, with every other set baked:
+
+| | Procedural hall | Baked hall |
+|---|---|---|
+| Download for the whole page (cache off) | 3,316 KB | 3,711 KB (+395 KB) |
+| GPU time per frame at Retina size, the hall's room view | 11.5 ms | 9.4 ms |
+| GPU time per frame at Retina size, riding past the hall | 53.9 ms | 38.7 ms |
+| Draw calls (with shadow pass) / triangles, the hall's room view | 579 / 464k | 588 / 480k |
 
 ### The exterior
 

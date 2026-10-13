@@ -3,19 +3,21 @@
 #   blender/bake.sh grandhall --size 2048 --samples 256
 #   blender/bake.sh exterior --size 2048 --cool-size 2048 --samples 256
 #   blender/bake.sh grounds --size 1536 --cool-size 1536 --samples 256    (after exterior: it uses the house)
-#   blender/bake.sh figures      (the caretaker and his dog: no lightmaps, their shading is in their vertex colours)
+#   blender/bake.sh endless --size 2048 --cool-size 1536 --samples 256
+#   blender/bake.sh figures      (the solid figures: no lightmaps, their shading is in their vertex colours)
 # Needs Blender 4.2+ (set BLENDER=/path/to/blender if it isn't on your PATH) and Python 3 with Pillow.
 # Full-size PNG lightmaps are kept in blender/build/ (not committed), so `blender/bake.sh <set> --encode-only`
 # re-encodes them at a different WebP quality without baking again (QUALITY=80 for the Grand Hall; the exterior and
 # grounds use 70, which looks the same on their lightmaps and saves about 90 KB a set).
 set -e
 cd "$(dirname "$0")/.."
-SET=${1:?which set: grandhall, exterior, grounds or figures}
+SET=${1:?which set: grandhall, exterior, grounds, endless or figures}
 shift
 case "$SET" in
   grandhall) SCRIPT=blender/grand_hall.py; Q=80 ;;
   exterior) SCRIPT=blender/exterior.py; Q=70 ;;
   grounds) SCRIPT=blender/grounds.py; Q=70 ;;
+  endless) SCRIPT=blender/endless_hall.py; Q=80 ;;
   figures) SCRIPT=blender/figures.py ;;
   *) echo "unknown set: $SET" >&2; exit 1 ;;
 esac

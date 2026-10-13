@@ -190,16 +190,20 @@ function hall(root) {
   });
   const S = new THREE.Group(), G = new THREE.Group(); root.add(G);
   const y0 = D.F1;
-  P.chandelier(S, 0, 7.0, 0.6, { r: 0.8, candles: 8, chain: 0.9 });
-  P.rugPlane(S, 0, y0, 0, 1.8, 8.8, T.rugPurple);
-  P.sconce(S, -1.95, 4.2, -4.58, 0, { m: MAT.flame });
-  P.sconce(S, 1.95, 4.2, -4.58, 0, { m: MAT.flame });
-  P.sconce(S, -4.45, 4.2, 1.6, Math.PI / 2);
+  // the baked hall (blender/endless_hall.py) brings its own chandelier, rug, sconces, door frames and clock case
+  const BK = !!W.bakedEndless, frame = BK ? null : MAT.gold;
+  if (!BK) {
+    P.chandelier(S, 0, 7.0, 0.6, { r: 0.8, candles: 8, chain: 0.9 });
+    P.rugPlane(S, 0, y0, 0, 1.8, 8.8, T.rugPurple);
+    P.sconce(S, -1.95, 4.2, -4.58, 0, { m: MAT.flame });
+    P.sconce(S, 1.95, 4.2, -4.58, 0, { m: MAT.flame });
+    P.sconce(S, -4.45, 4.2, 1.6, Math.PI / 2);
+  }
   // knocking doors
   const doors = [
-    P.door(G, -4.45, y0, -2.9, Math.PI / 2, { w: 1.4, h: 3.2 }),
-    P.door(G, -4.45, y0, 0.1, Math.PI / 2, { w: 1.3, h: 3.0, wood: mat('#3a1c2a', 0.6) }),
-    P.door(G, 3.0, y0, -4.58, 0, { w: 1.4, h: 3.2, wood: mat('#2c1f3a', 0.6) }),
+    P.door(G, -4.45, y0, -2.9, Math.PI / 2, { w: 1.4, h: 3.2, frame }),
+    P.door(G, -4.45, y0, 0.1, Math.PI / 2, { w: 1.3, h: 3.0, wood: mat('#3a1c2a', 0.6), frame }),
+    P.door(G, 3.0, y0, -4.58, 0, { w: 1.4, h: 3.2, wood: mat('#2c1f3a', 0.6), frame }),
   ];
   const dst = doors.map(() => ({ knock: 0, bulge: 0, next: rand(3, 9) }));
   onUpdate((t, dt) => {
@@ -217,7 +221,8 @@ function hall(root) {
     });
   });
   // the clock with thirteen hours
-  const clock = P.grandfatherClock(G, -3.0, y0, -4.32, 0);
+  const clock = P.grandfatherClock(G, -3.0, y0, -4.32, 0, { body: !BK });
+  if (BK) proxy(0.95, 3.75, 0.55, 0, 1.87, 0, clock.g);   // the baked case is still the thing to click
   // floating candelabra in the endless hall
   const cand = P.candelabra(G, 0, 0, 0, { arms: 3, s: 0.55, anim: true });
   cand.g.userData.keepGroup = true;
