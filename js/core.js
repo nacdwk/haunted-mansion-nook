@@ -220,7 +220,8 @@ export function bake(src, parent, { cast = true, receive = true } = {}) {
       const m = o.material;
       if (Array.isArray(m) || m.transparent && m.userData.noBake) { keeps.push(o); return; }
       const g = prepGeo(o.geometry, o.matrixWorld);
-      if (m.userData.uvScale) worldUV(g, m.userData.uvScale);
+      const uvScale = o.userData.uvScale || m.userData.uvScale;   // a mesh may override its material's scale
+      if (uvScale) worldUV(g, uvScale);
       if (!buckets.has(m)) buckets.set(m, []);
       buckets.get(m).push(g);
     }
@@ -397,12 +398,12 @@ export function updateDissolvers(dt) {
 }
 
 // ---------- ghosts ----------
-export function ghostMaterial({ color = 0x9ffcf0, opacity = 0.9, wobble = 1, hidden = false, eyes = true, eyeY = 1.42, side = THREE.FrontSide, blend = 'add' } = {}) {
+export function ghostMaterial({ color = 0x9ffcf0, opacity = 0.9, wobble = 1, hidden = false, eyes = true, eyeY = 1.42, eyeX = 0.105, mouth = true, side = THREE.FrontSide, blend = 'add' } = {}) {
   return new THREE.ShaderMaterial({
     uniforms: {
       uTime: W.U.uTime, uLantern: W.U.uLantern, uLanternOn: W.U.uLanternOn, uFlash: W.U.uFlash,
       uColor: { value: new THREE.Color(color) }, uOpacity: { value: opacity }, uWobble: { value: wobble },
-      uHidden: { value: hidden ? 1 : 0 }, uEyes: { value: eyes ? 1 : 0 }, uEyeY: { value: eyeY },
+      uHidden: { value: hidden ? 1 : 0 }, uEyes: { value: eyes ? 1 : 0 }, uEyeY: { value: eyeY }, uEyeX: { value: eyeX }, uMouthOn: { value: mouth ? 1 : 0 },
       uSeed: { value: Math.random() * 20 }, uMouth: { value: 0 },
     },
     vertexShader: /* glsl */`
@@ -424,7 +425,7 @@ export function ghostMaterial({ color = 0x9ffcf0, opacity = 0.9, wobble = 1, hid
     fragmentShader: /* glsl */`
       uniform vec3 uColor; uniform float uOpacity; uniform float uTime; uniform float uSeed;
       uniform vec3 uLantern; uniform float uLanternOn; uniform float uHidden; uniform float uFlash;
-      uniform float uEyes; uniform float uEyeY; uniform float uMouth;
+      uniform float uEyes; uniform float uEyeY; uniform float uEyeX; uniform float uMouth; uniform float uMouthOn;
       varying vec3 vN; varying vec3 vV; varying vec3 vW; varying vec3 vL;
       void main(){
         vec3 n = normalize(vN);
@@ -437,10 +438,10 @@ export function ghostMaterial({ color = 0x9ffcf0, opacity = 0.9, wobble = 1, hid
         float a = uOpacity * (0.17 + 0.83 * fres) * mix(0.12, 1.0, hem) * wisp;
         if (uEyes > 0.5 && vL.z > 0.05) {
           vec2 q = vL.xy;
-          float de = min(length((q - vec2(-0.105, uEyeY)) * vec2(1.0, 0.72)), length((q - vec2(0.105, uEyeY)) * vec2(1.0, 0.72)));
+          float de = min(length((q - vec2(-uEyeX, uEyeY)) * vec2(1.0, 0.72)), length((q - vec2(uEyeX, uEyeY)) * vec2(1.0, 0.72)));
           float eye = 1.0 - smoothstep(0.040, 0.056, de);
           float dm = length((q - vec2(0.0, uEyeY - 0.15)) * vec2(0.95, 1.6 - uMouth * 0.9));
-          float mouth = 1.0 - smoothstep(0.045 + uMouth * 0.02, 0.06 + uMouth * 0.02, dm);
+          float mouth = uMouthOn * (1.0 - smoothstep(0.045 + uMouth * 0.02, 0.06 + uMouth * 0.02, dm));
           float hole = max(eye, mouth);
           col *= 1.0 - hole * 0.92;
           a *= 1.0 - hole * 0.55;
@@ -456,8 +457,175 @@ export function ghostMaterial({ color = 0x9ffcf0, opacity = 0.9, wobble = 1, hid
   });
 }
 
-// Sheet-ghost lathe geometry (hem at y=0, head top near `height`). Front faces +z.
-export function ghostGeometry({ height = 1.7, width = 0.5, flare = 1.0, arms = 'out', hat = null, skirt = 0 } = {}) {
+// A robed ghost grown from rings: an egg-shaped head on a neck and sloping shoulders, a robe with folds whose hem
+// trails off into wisps (swept back, as if drifting forward), sleeves on curved arms with flared cuffs and mitten
+// hands, and hats sized to the head. Local y runs from the hem (0) to the top of the head (height); the face looks
+// down +z, where ghostMaterial paints the eyes and mouth (at y = 1.47 s, x = ±0.105). ?figures=0 shows the older,
+// simpler ghosts (classicGhostGeometry).
+const GHOST_PROFILE = [ // y / s, half-width / w, depth (front-to-back / side-to-side), z offset / s
+  [0.0, 1.0, 0.92, -0.08], [0.1, 0.98, 0.92, -0.065], [0.25, 0.92, 0.9, -0.045], [0.46, 0.82, 0.88, -0.02], [0.66, 0.74, 0.86, -0.005],
+  [0.84, 0.66, 0.84, 0], [0.98, 0.62, 0.74, 0], [1.08, 0.66, 0.62, 0], [1.15, 0.58, 0.62, 0.005], [1.21, 0.4, 0.75, 0.01],
+  [1.255, 0.27, 0.95, 0.015], [1.3, 0.36, 1.05, 0.025], [1.38, 0.48, 1.04, 0.03], [1.47, 0.54, 1.02, 0.03], [1.56, 0.53, 1.0, 0.02],
+  [1.64, 0.43, 0.98, 0.01], [1.69, 0.28, 0.95, 0.005], [1.715, 0.12, 0.95, 0], [1.72, 0.0, 1.0, 0],
+];
+const crSpline = (p0, p1, p2, p3, t) => 0.5 * (2 * p1 + (p2 - p0) * t + (2 * p0 - 5 * p1 + 4 * p2 - p3) * t * t + (3 * p1 - p0 - 3 * p2 + p3) * t * t * t);
+function ghostRows(sub) {
+  const P = GHOST_PROFILE, n = P.length, out = [];
+  for (let i = 0; i < n - 1; i++) {
+    for (let j = 0; j < sub; j++) {
+      const t = j / sub, a = P[Math.max(0, i - 1)], b = P[i], c = P[i + 1], d = P[Math.min(n - 1, i + 2)];
+      out.push(b.map((_, k) => crSpline(a[k], b[k], c[k], d[k], t)));
+    }
+  }
+  out.push(P[n - 1]);
+  return out;
+}
+// a closed, smooth surface through rings of points (each ring an array of Vector3s, all the same length)
+function ringSurface(rings) {
+  const R = rings[0].length, pos = [], idx = [];
+  for (const ring of rings) for (const v of ring) pos.push(v.x, v.y, v.z);
+  for (let i = 0; i < rings.length - 1; i++) {
+    for (let j = 0; j < R; j++) {
+      const a = i * R + j, b = i * R + (j + 1) % R, c = (i + 1) * R + (j + 1) % R, d = (i + 1) * R + j;
+      idx.push(a, b, c, a, c, d);
+    }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeVertexNormals();
+  return g;
+}
+// a tube along a curve whose radius varies along it, ending in a rounded tip; hand ends a sleeve with a cuff
+// and a mitten hand grown out of it in one piece (a separate little hand would glow as an outlined bubble)
+function ghostTube(pts, radiusAt, { N = 12, R = 10, hand = false } = {}) {
+  const curve = new THREE.CatmullRomCurve3(pts);
+  const fr = curve.computeFrenetFrames(N, false);
+  const ring = (c, n, b, rn, rb = rn) => Array.from({ length: R }, (_, j) => {
+    const a = (j / R) * TAU;
+    return c.clone().addScaledVector(n, Math.cos(a) * rn).addScaledVector(b, Math.sin(a) * rb);
+  });
+  const r0 = radiusAt(0);                         // a rounded start, so the shoulder end isn't an open ring
+  const rings = [ring(curve.getPointAt(0).addScaledVector(fr.tangents[0], -r0 * 0.6), fr.normals[0], fr.binormals[0], r0 * 0.05)];
+  for (let i = 0; i <= N; i++) rings.push(ring(curve.getPointAt(i / N), fr.normals[i], fr.binormals[i], radiusAt(i / N)));
+  const end = curve.getPointAt(1), T = fr.tangents[N], n = fr.normals[N], b = fr.binormals[N], r1 = radiusAt(1);
+  const at = (d) => end.clone().addScaledVector(T, r1 * d);
+  if (hand) {                                      // [distance past the cuff, thickness, width] in cuff radii
+    for (const [d, rn, rb] of [[0.12, 1.03, 1.03], [0.02, 0.42, 0.42], [0.35, 0.3, 0.36], [0.9, 0.26, 0.5], [1.4, 0.24, 0.47], [1.8, 0.16, 0.3], [2.0, 0.02, 0.02]]) {
+      rings.push(ring(at(d), n, b, r1 * rn, r1 * rb));
+    }
+  } else {
+    rings.push(ring(at(0.4), n, b, r1 * 0.02));
+  }
+  return { geo: ringSurface(rings), end, T, n, b, palm: at(0.9) };
+}
+// the same indexed surface facing the other way, with smooth normals
+function insideOut(g) {
+  const back = g.clone(), idx = back.index.array;
+  for (let i = 0; i < idx.length; i += 3) { const t = idx[i + 1]; idx[i + 1] = idx[i + 2]; idx[i + 2] = t; }
+  back.computeVertexNormals();
+  return back;
+}
+// a ghost's parts stay indexed, with positions and normals only (prepGeo would unshare every vertex, and each
+// would then be wobbled once per triangle instead of once)
+function ghostPart(geo, m) {
+  const g = geo.clone();
+  if (m) g.applyMatrix4(m);
+  for (const k of Object.keys(g.attributes)) if (k !== 'position' && k !== 'normal') g.deleteAttribute(k);
+  g.morphAttributes = {};
+  g.clearGroups();
+  return g;
+}
+// a lathe, closed when its profile starts and ends on the axis; phi limits it to part of the way round, and
+// twoSided adds the inside as well, for sheets like a veil or a hood that are seen from both sides
+function ghostLathe(profile, { segs = 24, phiStart = 0, phiLength = TAU, twoSided = false } = {}) {
+  const g = new THREE.LatheGeometry(profile.map(([r, y]) => new THREE.Vector2(r, y)), segs, phiStart, phiLength);
+  return twoSided ? mergeGeometries([ghostPart(g), ghostPart(insideOut(g))], false) : g;
+}
+export function ghostGeometry(opts = {}) {
+  if (W.classicFigures) return classicGhostGeometry(opts);
+  const { height = 1.7, width = 0.5, flare = 1.0, arms = 'out', hat = null, skirt = 0 } = opts;
+  const s = height / 1.72, w = width, f = flare, k = skirt;
+  const phase = (height * 7.31 + width * 13.7 + flare * 3.1) % TAU;          // folds and wisps differ from ghost to ghost
+  const R = 28;
+  const rows = ghostRows(2).map(([yn, rx0, depth, zo]) => {
+    const g = Math.max(0, 1 - yn / 0.9) ** 1.3, h = Math.max(0, 1 - yn / 0.66) ** 1.2;
+    return [yn, rx0 * w * (1 + (f - 1) * g) * (1 + k * h), depth, zo];
+  });
+  const body = ringSurface(rows.map(([yn, rx, depth, zo]) => {
+    const A = 0.04 * Math.max(0, 1 - yn / 0.95) ** 1.5;                     // folds, deepest at the hem
+    return Array.from({ length: R }, (_, j) => {
+      const th = (j / R) * TAU;
+      const fold = 1 + A * Math.sin(8 * th + phase) + 0.4 * A * Math.sin(13 * th + 2 * phase);
+      const tail = yn < 0.32 ? -0.17 * s * (0.5 + 0.5 * Math.sin(7 * th + phase * 1.7)) ** 2 * (1 - yn / 0.32) ** 2 : 0;
+      return new THREE.Vector3(Math.sin(th) * rx * fold, yn * s + tail, Math.cos(th) * rx * depth * fold + zo * s);
+    });
+  }));
+  const parts = [ghostPart(body)];
+  const add = (geo, m) => parts.push(ghostPart(geo, m));
+  const v = (x, y, z) => new THREE.Vector3(x, y, z);
+  if (arms) {
+    const sx = 0.56 * w;
+    const SH = (side) => v(side * sx, 1.11 * s, -0.01 * s);
+    const pose = {
+      out: (side) => [SH(side), v(side * (sx + 0.28 * s), 1.0 * s, 0.06 * s), v(side * (sx + 0.55 * s), 0.93 * s, 0.17 * s)],
+      up: (side) => [SH(side), v(side * (sx + 0.17 * s), 1.33 * s, 0.07 * s), v(side * (sx + 0.2 * s), 1.6 * s, 0.13 * s)],
+      front: (side) => [SH(side), v(side * (sx - 0.01 * s), 1.0 * s, 0.27 * s), v(side * (sx - 0.09 * s), 1.03 * s, 0.55 * s)],
+      down: (side) => [SH(side), v(side * (sx + 0.07 * s), 0.83 * s, 0.03 * s), v(side * (sx + 0.09 * s), 0.57 * s, 0.1 * s)],
+      hitch: (side) => (side < 0 ? [SH(-1), v(-(sx + 0.3 * s), 1.08 * s, 0.03 * s), v(-(sx + 0.58 * s), 1.13 * s, 0.06 * s)] : null),
+    };
+    for (const side of [-1, 1]) {
+      const pts = (pose[arms] || pose.out)(side) || pose.down(side);
+      const sl = ghostTube(pts, (t) => (0.068 + 0.034 * t ** 1.4) * s, { hand: true });
+      parts.push(ghostPart(sl.geo));
+      if (arms === 'hitch' && side < 0) {                                        // thumb up for a ride
+        parts.push(ghostPart(ghostTube([sl.palm, sl.palm.clone().add(v(0, 0.06 * s, 0)), sl.palm.clone().add(v(0, 0.12 * s, 0.01 * s))],
+          (t) => (0.026 - 0.008 * t) * s, { N: 4, R: 8 }).geo));
+      }
+    }
+  }
+  const hr = 0.54 * w, top = 1.72 * s, eyeY = 1.47 * s;                       // the head's half-width, its top and its middle
+  const at = (x, y, z) => new THREE.Matrix4().makeTranslation(x, y, z);
+  if (hat === 'top') {
+    add(ghostLathe([[hr * 0.75, 0], [hr * 1.32, 0.005], [hr * 1.4, hr * 0.12], [hr * 1.3, hr * 0.1], [hr * 0.75, hr * 0.08], [hr * 0.75, 0]], { segs: 24 }), at(0, top - hr * 0.42, 0));
+    add(ghostLathe([[0.001, 0], [hr * 0.8, 0], [hr * 0.82, hr * 0.25], [hr * 0.88, hr * 1.5], [hr * 0.9, hr * 1.58], [0.001, hr * 1.6]], { segs: 20 }), at(0, top - hr * 0.42, 0));
+    add(ghostLathe([[0.001, 0], [hr * 0.84, 0], [hr * 0.85, hr * 0.26], [0.001, hr * 0.26]], { segs: 20 }), at(0, top - hr * 0.4, 0));
+  } else if (hat === 'bowler') {
+    add(ghostLathe([[hr * 0.75, 0], [hr * 1.12, 0.005], [hr * 1.2, hr * 0.14], [hr * 1.1, hr * 0.1], [hr * 0.75, hr * 0.08], [hr * 0.75, 0]], { segs: 24 }), at(0, top - hr * 0.42, 0));
+    add(ghostLathe([[0.001, 0], [hr * 0.84, 0], [hr * 0.88, hr * 0.3], [hr * 0.75, hr * 0.65], [hr * 0.45, hr * 0.82], [0.001, hr * 0.86]], { segs: 20 }), at(0, top - hr * 0.42, 0));
+  } else if (hat === 'crown') {
+    const c = new THREE.CylinderGeometry(hr * 0.78, hr * 0.72, hr * 0.5, 16, 1, true);
+    const p = c.attributes.position;
+    for (let i = 0; i < p.count; i++) if (p.getY(i) > 0) p.setY(i, p.getY(i) + (Math.round(Math.atan2(p.getZ(i), p.getX(i)) / TAU * 16) % 2 ? hr * 0.42 : 0));
+    c.computeVertexNormals();
+    add(c, at(0, top - hr * 0.15, 0));
+    for (let i = 0; i < 8; i++) {
+      const a = (i + 0.5) / 8 * TAU;
+      add(new THREE.SphereGeometry(hr * 0.09, 6, 5), at(Math.cos(a) * hr * 0.78, top - hr * 0.15 + hr * 0.67, Math.sin(a) * hr * 0.78));
+    }
+  } else if (hat === 'bun') {
+    add(new THREE.SphereGeometry(hr * 0.55, 12, 10), at(0, top - hr * 0.2, -hr * 0.62));
+    add(ghostLathe([[0.001, hr * 1.12], [hr * 0.6, hr * 1.0], [hr * 0.98, hr * 0.55], [hr * 1.06, 0]], { segs: 24, phiStart: Math.PI * 0.62, phiLength: Math.PI * 0.76, twoSided: true }), at(0, eyeY - hr * 0.1, -0.015 * s));
+  } else if (hat === 'veil') {
+    add(new THREE.TorusGeometry(hr * 0.72, hr * 0.06, 6, 20), new THREE.Matrix4().makeRotationX(Math.PI / 2).setPosition(0, top - hr * 0.25, -hr * 0.12));
+    const hem = 0.55 * w * f * (1 + k);
+    add(ghostLathe([[hr * 0.7, top - hr * 0.2], [hr * 1.05, top - hr * 0.6], [hem * 0.55, 1.0 * s], [hem * 0.8, 0.5 * s], [hem * 0.95, 0.12 * s]], { segs: 28, phiStart: Math.PI * 0.35, phiLength: Math.PI * 1.3, twoSided: true }), at(0, 0, -0.05 * s));   // open in front of her face
+  } else if (hat === 'hood') {
+    const hood = new THREE.SphereGeometry(hr * 1.2, 20, 12, Math.PI * 0.8, Math.PI * 1.4, 0, Math.PI * 0.62);
+    const p = hood.attributes.position;
+    for (let i = 0; i < p.count; i++) {                                        // drawn up to a point at the back
+      const y = p.getY(i), z = p.getZ(i);
+      if (y > hr * 0.5) p.setXYZ(i, p.getX(i) * 0.85, y + (y - hr * 0.5) * 0.9, z - (y - hr * 0.5) * 0.7);
+    }
+    hood.computeVertexNormals();
+    add(hood, at(0, eyeY + 0.02 * s, -0.04 * s)); add(insideOut(hood), at(0, eyeY + 0.02 * s, -0.04 * s));
+    add(ghostLathe([[0.4 * w, 1.26 * s], [0.7 * w, 1.12 * s], [0.78 * w, 0.92 * s]], { segs: 24, phiStart: Math.PI * 0.62, phiLength: Math.PI * 0.76, twoSided: true }));   // the cowl's cape
+  }
+  return mergeGeometries(parts, false);
+}
+
+// the original sheet-ghost lathe (hem at y=0, head top near `height`, front faces +z), shown with ?figures=0
+export function classicGhostGeometry({ height = 1.7, width = 0.5, flare = 1.0, arms = 'out', hat = null, skirt = 0 } = {}) {
   const s = height / 1.72;
   const prof = [
     [width * flare * (1 + skirt), 0.0], [width * 0.95 * flare * (1 + skirt * 0.6), 0.16], [width * 0.82 * (1 + skirt * 0.25), 0.46],
