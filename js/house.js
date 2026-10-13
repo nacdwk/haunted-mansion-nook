@@ -571,19 +571,21 @@ export function buildMansard(root) {
   return slopes;
 }
 function dormer(g, x, z, paneOnly = false) {
-  const w = 2.3, y0 = 14.6, h = 2.5, d = 2.2;
+  const w = 2.3, y0 = 14.6, h = 2.5;
   const gw = mesh(new THREE.PlaneGeometry(1.2, 1.7), MAT.windowArch, x, y0 + 1.15, z + 0.02, g);
   if (paneOnly) return;
-  boxA(x - w / 2, x + w / 2, y0, y0 + h, z - d, z, MAT.siding, g);
-  boxA(x - w / 2 - 0.12, x + w / 2 + 0.12, y0 - 0.1, y0 + 0.05, z - d, z + 0.12, MAT.trim, g);
-  const op = { u0: x - 0.6, u1: x + 0.6, v0: y0 + 0.3, v1: y0 + 2.0 };
-  boxA(op.u0 - 0.14, op.u0, op.v0, op.v1, z, z + 0.08, MAT.trim, g);
-  boxA(op.u1, op.u1 + 0.14, op.v0, op.v1, z, z + 0.08, MAT.trim, g);
-  boxA(op.u0 - 0.14, op.u1 + 0.14, op.v0 - 0.14, op.v0, z, z + 0.14, MAT.trim, g);
+  // Only its top stands proud of the shingles, so it stops just inside them: the rest would stand inside the attic,
+  // across the Doom Buggies' track. zb(y) is that cut at height y; the casing stops where the shingles hide it.
+  const k = 1.95 / 5.4, zb = (y) => 5.186 - k * (y - 14), ry = y0 + h, yc = 14 + (5.186 - z) / k, yt = 16.45;
+  const wedge = new THREE.Shape(); wedge.moveTo(z, yc); wedge.lineTo(z, ry); wedge.lineTo(zb(ry), ry); wedge.closePath();
+  const wg = new THREE.ExtrudeGeometry(wedge, { depth: w, bevelEnabled: false }); wg.rotateY(-Math.PI / 2); wg.translate(x + w / 2, 0, 0);
+  mesh(wg, MAT.siding, 0, 0, 0, g);
+  const op = { u0: x - 0.6, u1: x + 0.6, v1: y0 + 2.0 };
+  boxA(op.u0 - 0.14, op.u0, yt, op.v1, z, z + 0.08, MAT.trim, g);
+  boxA(op.u1, op.u1 + 0.14, yt, op.v1, z, z + 0.08, MAT.trim, g);
   // gable roof
-  const ry = y0 + h;
-  const r1 = quadPrism([x - w / 2 - 0.3, ry, z + 0.3], [x, ry + 1.2, z + 0.3], [x, ry + 1.2, z - d], [x - w / 2 - 0.3, ry, z - d], 0.12);
-  const r2 = quadPrism([x, ry + 1.2, z + 0.3], [x + w / 2 + 0.3, ry, z + 0.3], [x + w / 2 + 0.3, ry, z - d], [x, ry + 1.2, z - d], 0.12);
+  const r1 = quadPrism([x - w / 2 - 0.3, ry, z + 0.3], [x, ry + 1.2, z + 0.3], [x, ry + 1.2, zb(ry + 1.2)], [x - w / 2 - 0.3, ry, zb(ry)], 0.12);
+  const r2 = quadPrism([x, ry + 1.2, z + 0.3], [x + w / 2 + 0.3, ry, z + 0.3], [x + w / 2 + 0.3, ry, zb(ry)], [x, ry + 1.2, zb(ry + 1.2)], 0.12);
   g.add(new THREE.Mesh(r1, MAT.shingleDark)); g.add(new THREE.Mesh(r2, MAT.shingleDark));
   const tri = new THREE.Shape(); tri.moveTo(-w / 2, 0); tri.lineTo(w / 2, 0); tri.lineTo(0, 1.15); tri.closePath();
   const pg = mesh(new THREE.ShapeGeometry(tri), MAT.trim, x, ry, z + 0.01, g);

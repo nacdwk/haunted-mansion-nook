@@ -10,8 +10,7 @@ attic_warm.png and attic_cool.png (sqrt-encoded irradiance) and attic.json.
 warm: the bride's pale glow and the candles on their stands. cool: the night through the ride's opening in the right
 slope, and a little ambient light.
 The bride with the candelabra, the ghosts in the trunks, the pianist, the rocking chair, the wedding portraits and the
-cobwebs stay procedural (js/rooms.js), and so do the dormers, which belong to the exterior. Nothing is put in the
-Doom Buggies' way: up through the slot in the floor, round, and along z = 2.3 to the opening in the right slope.
+cobwebs stay procedural (js/rooms.js). Nothing is put in the Doom Buggies' way: up through the slot in the floor, round, and along z = 2.3 to the opening in the right slope.
 Coordinates match js/house.js (buildMansard) and js/rooms.js.
 """
 import os, sys, math, random
@@ -110,7 +109,6 @@ def hip(sx, sz, w=0.15):
     pts = [c, c + Vector((-sx * w, 0, 0)), c + Vector((-sx * w, 0, -sz * w)), c + Vector((0, 0, -sz * w))]
     prism([tuple(p) for p in pts], (-sx * K * (y1 - y0), y1 - y0, -sz * K * (y1 - y0)), M['beam'])
 
-DORMERS = [-8.0, 0.0, 8.0]                          # they poke through the front slope up to y 18.3
 PORTRAITS = [-7.4, -4.9, 3.8, 6.3]                  # on the back slope, y 15.5 to 17.3 (js/rooms.js)
 RAFT_TOP = TOP - 0.2                                # the roof deck's underside
 for side in ('front', 'back', 'left', 'right'):
@@ -120,11 +118,9 @@ for side in ('front', 'back', 'left', 'right'):
         prism([tuple(Vector(p) + n * 0.13) for p in q], tuple(n * (INNER - 0.13)), M['lining'])
 group('slope-front')
 for x in np.arange(-11.2, 11.3, 1.4):
-    if all(abs(x - d) > 1.55 for d in DORMERS):
-        rafter('front', x, AT + 0.01, RAFT_TOP)
-for y in (15.7, 17.6):
-    purlin('front', y, free_runs(-reach('front', y), reach('front', y), [(d - 1.45, d + 1.45) for d in DORMERS]))
-purlin('front', 18.9, [(-reach('front', 18.9), reach('front', 18.9))])
+    rafter('front', x, AT + 0.01, RAFT_TOP)
+for y in (15.7, 17.6, 18.9):
+    purlin('front', y, [(-reach('front', y), reach('front', y))])
 for sx in (-1, 1):
     hip(sx, 1)
 group('slope-back')
@@ -299,14 +295,11 @@ for (x, z, r, w, d, h) in ((-4.4, -3.55, 0.2, 1.0, 0.9, 1.0), (12.4, -3.3, -0.1,
         loft([ring(h * f, k, folds) for f, k, folds in ((0.0, 1.05, 0.06), (0.25, 1.0, 0.05), (0.6, 0.97, 0.035), (0.84, 0.93, 0.02),
                                                          (0.95, 0.82, 0.01), (1.0, 0.6, 0.0))], M['canvas'])
 
-# ------------------------------------------------------------------ bake-only: the mansard round it, the roof, the dormers poking in
+# ------------------------------------------------------------------ bake-only: the mansard round it, the roof, the floor's slab
 for side, quads in SLOPES.items():
     for q in quads:
         blocker(prism([tuple(p) for p in q], tuple(inward(q) * 0.13), M['lining']))
 blocker(box(-12.45, 12.45, TOP - 0.2, TOP + 0.3, -3.45, 3.45, M['lining']))
-for d in DORMERS:
-    blocker(box(d - 1.15, d + 1.15, 14.6, 17.1, 2.05, 4.25, M['lining']))
-    blocker(slab2d([(d - 1.45, 17.1), (d + 1.45, 17.1), (d, 18.3)], 2.05, 4.55, M['lining'], plane='xy'))
 blocker(box(-14.2, 14.2, 13.4, 13.92, -5.1, 5.1, M['lining']))                # the slab under the boards
 for x0, x1, z0, z1 in ((-14.05, 14.05, -5.06, -4.55), (-14.05, 14.05, 4.55, 5.06), (-14.06, -13.55, -5.0, 5.0), (13.55, 14.06, -5.0, 5.0)):
     blocker(box(x0, x1, 13.98, 14.07, z0, z1, M['lining']))                  # the sill plates (the site's)

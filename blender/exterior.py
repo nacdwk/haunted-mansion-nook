@@ -260,21 +260,23 @@ for side, quads in SLOPES.items():
         box(p0[0] - 0.2, p0[0] + 0.3, p0[1] - 0.15, p0[1] + 0.2, zA - 0.2, zB + 0.2, T)
 
 def dormer(x, z=4.25):
-    w, y0, h, d = 2.3, 14.6, 2.5, 2.2
-    box(x - w / 2, x + w / 2, y0, y0 + h, z - d, z, M['siding'])
-    box(x - w / 2 - 0.12, x + w / 2 + 0.12, y0 - 0.1, y0 + 0.05, z - d, z + 0.12, T)
+    """Only a dormer's top stands proud of the shingles, so it stops just inside them: the rest would stand inside
+    the attic, across the Doom Buggies' track. zb(y) is that cut at height y; the trim stops where it is hidden."""
+    w, y0, h = 2.3, 14.6, 2.5
+    k = (Bz - Tz) / (TOP - AT)
+    zb = lambda y: Bz - 0.064 - k * (y - AT)
+    ry, yc, yt = y0 + h, AT + (Bz - 0.064 - z) / k, 16.45
+    slab2d([(z, yc), (z, ry), (zb(ry), ry)], x - w / 2, x + w / 2, M['siding'], plane='zy')
     fw = Wall((x, 0, z), (1, 0, 0), (0, 0, 1), 0)
     for (a, b) in [(-0.76, -0.6), (0.6, 0.76)]:                     # window casing (the arched pane stays procedural)
-        fw.box(a, b, 14.9, 16.6, 0, 0.08, T)
-    fw.box(-0.76, 0.76, 14.76, 14.9, 0, 0.14, T)
+        fw.box(a, b, yt, 16.6, 0, 0.08, T)
     fw.box(-0.76, 0.76, 16.6, 16.74, 0, 0.08, T)
     for (a, b) in [(-1.12, -0.86), (0.86, 1.12)]:                   # pilasters
-        fw.box(a, b, 14.65, 16.95, 0, 0.1, T)
+        fw.box(a, b, yt, 16.95, 0, 0.1, T)
         fw.box(a - 0.03, b + 0.03, 16.85, 17.0, 0, 0.13, T)
-    ry = y0 + h
-    for q in ([(x - w / 2 - 0.3, ry, z + 0.3), (x, ry + 1.2, z + 0.3), (x, ry + 1.2, z - d), (x - w / 2 - 0.3, ry, z - d)],
-              [(x, ry + 1.2, z + 0.3), (x + w / 2 + 0.3, ry, z + 0.3), (x + w / 2 + 0.3, ry, z - d), (x, ry + 1.2, z - d)]):
-        slab(q, 0.12, M['shingle_dark'], toward=(x, ry, z - d / 2))
+    for q in ([(x - w / 2 - 0.3, ry, z + 0.3), (x, ry + 1.2, z + 0.3), (x, ry + 1.2, zb(ry + 1.2)), (x - w / 2 - 0.3, ry, zb(ry))],
+              [(x, ry + 1.2, z + 0.3), (x + w / 2 + 0.3, ry, z + 0.3), (x + w / 2 + 0.3, ry, zb(ry)), (x, ry + 1.2, zb(ry + 1.2))]):
+        slab(q, 0.12, M['shingle_dark'], toward=(x, ry, z - 1.1))
     prism([(x - w / 2, ry, z), (x + w / 2, ry, z), (x, ry + 1.15, z)], (0, 0, 0.06), T)
     for s in (-1, 1):                                                # raking trim on the gable
         e = x + s * (w / 2 + 0.24)

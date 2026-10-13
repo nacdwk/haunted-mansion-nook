@@ -197,15 +197,16 @@ The long room under the mansard, where the bride waits with a candle, is a set t
 - **The roof.** Each slope is lined with planks on rafters and purlins, with beams along the hips. The Doom Buggies' way out through the right slope is framed with jambs and a header. Each slope's lining melts with that slope.
 - **The furniture.** The grand piano has a proper keyboard and a lid on its short stick. The site's own piano had its tail through the pianist. The steamer trunks have domed lids, wooden slats and brass corners. There are stacked hat boxes, a dress form in a gown that falls in folds, a birdcage, candle stands, a cheval mirror, and furniture under dust sheets.
 - **The light.** The bride's light never moves, so it is baked with the candles. The night comes in through the ride's opening.
-- **Still procedural.** Everything that moves stays the site's: the bride with the candelabra, the ghosts in the trunks, the pianist, and the rocking chair. So do the wedding portraits and the cobwebs, and the dormers, which belong to the exterior.
+- **The dormers.** They used to reach two metres into the attic, behind the shingles, and the Doom Buggies drove through their walls. Now they stop at the roof, in the exterior's set and in the procedural house. From outside they look the same, because only their tops ever showed above the shingles.
+- **Still procedural.** Everything that moves stays the site's: the bride with the candelabra, the ghosts in the trunks, the pianist, and the rocking chair. So do the wedding portraits and the cobwebs.
 - **Brightness.** The procedural attic took most of its light from the house's ambient light, so the baked one leans on its ambient layer (`?akw=` and `?akc=` tune it).
 
 | | Procedural room | Baked room |
 |---|---|---|
-| Download for the whole page (cache off) | 4,289 KB | 4,493 KB (+204 KB) |
-| GPU time per frame at Retina size, the room view | 7.1 ms | 5.0 ms |
-| GPU time per frame at Retina size, riding through it | 54.4 ms | 41–44 ms |
-| Draw calls (with shadow pass) / triangles, the room view | 699 / 528k | 698 / 537k |
+| Download for the whole page (cache off) | 4,279 KB | 4,492 KB (+213 KB) |
+| GPU time per frame at Retina size, the room view | 7.6 ms | 5.3 ms |
+| GPU time per frame at Retina size, riding through it | 54.4 ms | 44–46 ms |
+| Draw calls (with shadow pass) / triangles, the room view | 702 / 531k | 696 / 536k |
 
 ### The exterior
 
