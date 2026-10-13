@@ -1,0 +1,58 @@
+{
+ "triangles": 59526,
+ "groups": [
+  "main",
+  "trees",
+  "graveyard",
+  "yard",
+  "hearse",
+  "iron",
+  "hearse-trim"
+ ],
+ "lit": [
+  "hearse-trim",
+  "iron"
+ ],
+ "materials": [
+  "bark",
+  "bark_light",
+  "black",
+  "cloth",
+  "dirt",
+  "flags",
+  "foliage",
+  "foliage_dark",
+  "gold",
+  "iron",
+  "mahogany",
+  "moss",
+  "plume",
+  "stone",
+  "stone_dark",
+  "stone_warm",
+  "tomb",
+  "tomb_dark",
+  "velvet",
+  "void",
+  "walnut",
+  "wood_dark"
+ ],
+ "samples": 256,
+ "warm": {
+  "scale": 6.721927642822266,
+  "size": 1536,
+  "seconds": 10.4,
+  "mean": 0.5337421894073486,
+  "p50": 0.05608911067247391,
+  "clipped": 0.00060272216796875
+ },
+ "cool": {
+  "scale": 1.6893839836120605,
+  "size": 1536,
+  "seconds": 8.3,
+  "mean": 0.27919507026672363,
+  "p50": 0.15320536494255066,
+  "clipped": 0.0
+ },
+ "seconds": 20.4
+}
