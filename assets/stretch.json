@@ -1,0 +1,43 @@
+{
+ "triangles": 3706,
+ "groups": [
+  "main",
+  "facet0",
+  "facet1",
+  "facet2",
+  "facet3",
+  "facet4",
+  "facet5",
+  "facet6",
+  "facet7",
+  "upper"
+ ],
+ "lit": [],
+ "materials": [
+  "floor",
+  "gilt",
+  "plaster",
+  "rug",
+  "stripes",
+  "wainscot",
+  "walnut"
+ ],
+ "samples": 256,
+ "warm": {
+  "scale": 3.497681140899658,
+  "size": 1536,
+  "seconds": 15.9,
+  "mean": 0.7397940754890442,
+  "p50": 0.6309656500816345,
+  "clipped": 0.0
+ },
+ "cool": {
+  "scale": 0.10350000113248825,
+  "size": 768,
+  "seconds": 3.8,
+  "mean": 0.04166587069630623,
+  "p50": 0.03895752131938934,
+  "clipped": 0.0
+ },
+ "seconds": 22.0
+}

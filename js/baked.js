@@ -28,6 +28,7 @@ const SEA_KW = num('skw', '0.7'), SEA_KC = num('skc', '1.4');      // the crysta
 const ATT_KW = num('akw', '1.0'), ATT_KC = num('akc', '6.0');     // the house's ambient light fills the Attic, as it did
 const BAS_KW = num('bkw', '2.0'), BAS_KC = num('bkc', '4.0');
 const LIB_KW = num('lkw', '1.25'), LIB_KC = num('lkc', '1.0');     // the fire leads, as it did
+const STR_KW = num('tkw', '0.8'), STR_KC = num('tkc', '2.0');
 
 let gltf = null;
 function loader() {
@@ -162,6 +163,13 @@ const LIBRARY_LOOK = {
   book_red: { color: '#5a1a22' }, book_green: { color: '#1f3a2a' }, book_blue: { color: '#2a2346' }, book_brown: { color: '#6a4a1a' },
   book_plum: { color: '#3e2a52' },
 };
+// the Stretching Room: the official stripes (or the house's own), dark wainscot, gilt rails and ribs, a plank floor
+// and the round rug as the site laid it
+const STRETCH_LOOK = {
+  stripes: { mat: 'papTower' }, wainscot: { map: 'wainscotDark', uv: 2.4, gloss: 0.15 }, walnut: { color: '#2a170d', gloss: 0.2 },
+  gilt: { color: '#c9a24a', metal: 1 }, floor: { map: 'woodDark', uv: 5, gloss: 0.2 }, rug: { map: 'rugRed', rug: [-18.9, 4.0, 4.0, 4.0] },
+  plaster: { map: 'plaster', uv: 3, color: '#a08878' }, wax: { color: '#efe6cf' },
+};
 // the Grand Hall's brightest flames, which polished surfaces pick up as glints: position and strength
 const HALL_GLINTS = [[-5.0, 12.5, 1.6, 7], [-10.3, 7.9, -4.1, 5], [-6.4, 9.1, -0.45, 2.2], [-2.8, 9.1, -0.45, 2.2],
   [4.17, 10.6, 0.0, 1.4], [4.17, 10.6, 3.0, 1.4], [-12.4, 11.2, -4.28, 1.4], [-4.6, 9.3, -0.55, 1.2]];
@@ -209,6 +217,7 @@ const FRAG = /* glsl */`
       albedo *= texture2D(uMap, tuv).rgb;
     } else if (uMode > 0.5) {         // box-mapped by the facet's dominant axis, like worldUV() in core.js
       vec3 fn = abs(cross(dFdx(vW), dFdy(vW)));
+      fn.z *= 1.02;                   // so a wall at 45 degrees always takes the same face, not whichever wins by a hair
       tuv = (fn.x >= fn.y && fn.x >= fn.z ? P.zy : (fn.y >= fn.z ? P.xz : P.xy)) / uUv;
       albedo *= texture2D(uMap, tuv).rgb;
     }
@@ -540,6 +549,33 @@ export function addBakedLibrary(root) {
     shared.uCoolK.value.setScalar(H.meta.cool.scale * LIB_KC * mul * (1 - storm * 0.25) * (1 + flash * 2.5));
   });
   W.bakedLibraryGroup = G;
+  return G;
+}
+
+// ---------------------------------------------------------------- the Stretching Room
+// Each wall's dressing stretches with its wall (and melts with it), the ceiling rises with the upper tower, and the
+// floor stays put. The room's lamp and the chandelier's candles are baked at rest.
+export function addBakedStretch(root) {
+  const H = W.bakedStretch;
+  const shared = sharedUniforms(H, { hot: [-16.9, 4.8, 2.0], hotCol: [2.2, 1.4, 0.7], envLow: [0.04, 0.025, 0.02], envHigh: [0.35, 0.24, 0.16],
+    glints: [[-16.9, 6.3, 2.0, 3]] });
+  const G = new THREE.Group(); G.name = 'bakedStretch'; G.userData.noCompact = true;
+  root.add(G);
+  attach(H, shared, STRETCH_LOOK, (name) => {
+    const f = name.match(/^Str_facet(\d)$/);
+    if (f) return { dissolver: +f[1] === 2 ? undefined : `tower${f[1]}`, parent: W.tower.facets[+f[1]].stretchG, world: true };
+    if (name === 'Str_upper') return { parent: W.tower.upper, world: true };
+    return name.startsWith('Str_') ? { parent: G } : null;
+  });
+  onUpdate((t) => {
+    const room = W.rooms.tower;
+    const mul = (room ? room.lightMul : 1) * W.lightMul;
+    const flick = 0.9 + 0.1 * (0.65 * noise1(t * 5.5 + 4.1) + 0.35 * (0.5 + 0.5 * Math.sin(t * 8.4 + 1.9)));
+    const storm = W.fx?.stormK || 0, flash = W.U.uFlash.value;
+    shared.uWarmK.value.setScalar(H.meta.warm.scale * STR_KW * flick * mul);
+    shared.uCoolK.value.setScalar(H.meta.cool.scale * STR_KC * mul * (1 - storm * 0.25) * (1 + flash * 2.5));
+  });
+  W.bakedStretchGroup = G;
   return G;
 }
 
