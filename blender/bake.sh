@@ -8,6 +8,7 @@
 #   blender/bake.sh seance --size 1536 --cool-size 1024 --samples 256
 #   blender/bake.sh attic --size 2048 --cool-size 1024 --samples 256
 #   blender/bake.sh basement --size 2048 --cool-size 1024 --samples 256
+#   blender/bake.sh library --size 2048 --cool-size 1024 --samples 256
 #   blender/bake.sh figures      (the solid figures: no lightmaps, their shading is in their vertex colours)
 # Needs Blender 4.2+ (set BLENDER=/path/to/blender if it isn't on your PATH) and Python 3 with Pillow.
 # Full-size PNG lightmaps are kept in blender/build/ (not committed), so `blender/bake.sh <set> --encode-only`
@@ -15,7 +16,7 @@
 # grounds use 70, which looks the same on their lightmaps and saves about 90 KB a set).
 set -e
 cd "$(dirname "$0")/.."
-SET=${1:?which set: grandhall, exterior, grounds, endless, conserv, seance, attic, basement or figures}
+SET=${1:?which set: grandhall, exterior, grounds, endless, conserv, seance, attic, basement, library or figures}
 shift
 case "$SET" in
   grandhall) SCRIPT=blender/grand_hall.py; Q=80 ;;
@@ -26,6 +27,7 @@ case "$SET" in
   seance) SCRIPT=blender/seance.py; Q=70 ;;
   attic) SCRIPT=blender/attic.py; Q=70 ;;
   basement) SCRIPT=blender/basement.py; Q=70 ;;
+  library) SCRIPT=blender/library.py; Q=70 ;;
   figures) SCRIPT=blender/figures.py ;;
   *) echo "unknown set: $SET" >&2; exit 1 ;;
 esac
