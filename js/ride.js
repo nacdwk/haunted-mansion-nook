@@ -203,7 +203,10 @@ export function buildRide(root) {
       if (fy < -2.5 && fx < 15.5 && fx > 6.0) slow = 0.32;
     }
     st.slow = damp(st.slow ?? 1, slow, 2.5, dt);
-    const sp = st.speed * st.slow * (W.state.reduced ? 0.8 : 1);
+    // and goes at half speed while you ride, so there is time to look around (the mirror's stretch stays as slow as it
+    // was); seen from outside it keeps its pace
+    st.pace = damp(st.pace ?? 1, st.riding ? 0.5 : 1, 2, dt);
+    const sp = st.speed * Math.min(st.slow, st.pace) * (W.state.reduced ? 0.8 : 1);
     st.trainU = (((st.trainU + dt * sp / L) % 1) + 1) % 1;
     if (!Number.isFinite(st.trainU)) st.trainU = 0;
     for (let i = 0; i < N; i++) {
