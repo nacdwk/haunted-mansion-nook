@@ -129,37 +129,107 @@ export function damask(bg = '#3d1a2a', fg = '#5e2a3e', { stripe = true, accent =
 }
 
 // The famous eye-filled wallpaper (our own take): scrollwork faces with glowing eyes.
-export function eyePaper() {
-  const S = 256;
-  const [c, ctx] = cnv(S, S);
-  const [ce, cte] = cnv(S, S);
-  ctx.fillStyle = '#2e1540'; ctx.fillRect(0, 0, S, S);
-  cte.fillStyle = '#000'; cte.fillRect(0, 0, S, S);
-  const face = (cx, cy, sc) => {
-    ctx.save(); ctx.translate(cx, cy); ctx.scale(sc, sc);
-    ctx.strokeStyle = '#6b2f7a'; ctx.fillStyle = '#4a1f5c'; ctx.lineWidth = 6; ctx.lineCap = 'round';
-    for (const m of [1, -1]) {
-      ctx.save(); ctx.scale(m, 1);
-      ctx.beginPath(); ctx.moveTo(4, -56); ctx.bezierCurveTo(46, -64, 66, -30, 52, 0); ctx.bezierCurveTo(44, 18, 24, 20, 22, 6); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(6, 30); ctx.bezierCurveTo(30, 34, 50, 50, 44, 72); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(10, -10); ctx.bezierCurveTo(30, -24, 46, -16, 46, -6); ctx.bezierCurveTo(36, 2, 22, 2, 10, -10); ctx.fill();
-      ctx.restore();
+// The Stretching Room's wallpaper: regency stripes in oxblood, sage, gold, slate and soot, finely ribbed.
+export function stripes() {
+  const W = 256, H = 256;
+  const [c, ctx] = cnv(W, H);
+  const seq = [['#7c1f24', 34], ['#c2a25a', 3], ['#2e2a24', 4], ['#c2a25a', 3], ['#46603f', 22], ['#5a5f6e', 5], ['#46603f', 10],
+    ['#c2a25a', 6], ['#1f1c18', 8], ['#7c1f24', 18], ['#a8323a', 6], ['#7c1f24', 18], ['#c2a25a', 2], ['#46603f', 30],
+    ['#c2a25a', 4], ['#2e2a24', 10], ['#c2a25a', 4], ['#5a5f6e', 8], ['#7c1f24', 30], ['#c2a25a', 3], ['#46603f', 18], ['#1f1c18', 6], ['#c2a25a', 4]];
+  let x = 0;
+  for (const [col, w] of seq) {
+    ctx.fillStyle = col; ctx.fillRect(x, 0, w, H);
+    if (w >= 18) { ctx.fillStyle = 'rgba(0,0,0,0.12)'; for (let k = x + 2; k < x + w - 1; k += 3) ctx.fillRect(k, 0, 1, H); }   // ribbing
+    x += w;
+  }
+  grain(ctx, W, H, 0.04, 1500);
+  return tex(c);
+}
+
+// The Endless Hall's wallpaper: a lavender damask of hooded wardens, bat-winged imps and little peepers whose white eyes glow
+// in the dark (the emissive map). One repeat is 256x512 with every other row shifted half a repeat.
+export function hauntPaper() {
+  const W = 256, H = 512, TAU = Math.PI * 2;
+  const PAPER = '#6856a4', INK = '#120e1e', EYE = '#efedf2';
+  const [c, ctx] = cnv(W, H);
+  const [ce, cte] = cnv(W, H);
+  ctx.fillStyle = PAPER; ctx.fillRect(0, 0, W, H);
+  cte.fillStyle = '#000'; cte.fillRect(0, 0, W, H);
+  // draw a motif at every wrapped position where it overlaps the tile, so the pattern repeats seamlessly
+  const stamp = (x, y, r, fn) => {
+    for (const dx of [-W, 0, W]) for (const dy of [-H, 0, H]) {
+      if (x + dx + r > 0 && x + dx - r < W && y + dy + r > 0 && y + dy - r < H) fn(x + dx, y + dy);
     }
-    ctx.fillStyle = '#5b2a6d'; ctx.beginPath(); ctx.moveTo(0, -4); ctx.lineTo(10, 26); ctx.lineTo(-10, 26); ctx.fill();
-    ctx.restore();
+  };
+  // a pair of narrowed, slanting eyes, on the paper and in the glow map
+  const eyes = (x, y, gap, s) => {
     for (const m of [1, -1]) {
-      const ex = cx + m * 26 * sc, ey = cy - 6 * sc;
-      for (const [g, col, a] of [[ctx, '#f2c14e', 1], [cte, '#ffcf55', 1]]) {
-        g.save(); g.translate(ex, ey); g.scale(sc, sc);
-        g.fillStyle = col; g.globalAlpha = a;
-        g.beginPath(); g.moveTo(-14, 0); g.quadraticCurveTo(0, -11, 14, 0); g.quadraticCurveTo(0, 11, -14, 0); g.fill();
-        g.fillStyle = '#1a0b10'; g.beginPath(); g.ellipse(m * 1.5, 0, 3.2, 6, 0, 0, 7); g.fill();
+      for (const [g, col] of [[ctx, EYE], [cte, '#fff']]) {
+        g.save(); g.translate(x + m * gap, y); g.rotate(-0.42 * m); g.scale(s, s);
+        g.fillStyle = col;
+        g.beginPath(); g.moveTo(-13 * m, -1); g.lineTo(13 * m, -4); g.quadraticCurveTo(4 * m, 10, -13 * m, -1); g.fill();
+        g.fillStyle = INK; g.beginPath(); g.ellipse(2 * m, 1.5, 2.6, 3.6, 0, 0, TAU); g.fill();
         g.restore();
       }
     }
   };
-  face(128, 128, 0.95); face(0, 0, 0.95); face(256, 0, 0.95); face(0, 256, 0.95); face(256, 256, 0.95);
-  grain(ctx, S, S, 0.06, 1500);
+  const warden = (x, y) => {
+    ctx.save(); ctx.translate(x, y); ctx.scale(1.12, 1.12);
+    ctx.fillStyle = INK; ctx.strokeStyle = INK; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const m of [1, -1]) {
+      ctx.save(); ctx.scale(m, 1);
+      ctx.beginPath(); ctx.moveTo(0, -84); ctx.bezierCurveTo(14, -70, 34, -56, 36, -26); ctx.bezierCurveTo(37, -2, 26, 18, 12, 30); ctx.lineTo(0, 34); ctx.fill();   // hood
+      ctx.beginPath(); ctx.moveTo(0, 26); ctx.lineTo(13, 30); ctx.bezierCurveTo(12, 56, 9, 80, 0, 106); ctx.fill();                                          // tapering stem
+      ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(30, -44); ctx.bezierCurveTo(44, -64, 66, -70, 70, -54); ctx.bezierCurveTo(73, -42, 60, -38, 56, -47); ctx.stroke();  // horn scroll
+      ctx.beginPath(); ctx.moveTo(34, -30); ctx.bezierCurveTo(56, -38, 78, -24, 74, 0); ctx.bezierCurveTo(64, -10, 50, -14, 36, -12); ctx.fill();                   // acanthus leaf
+      ctx.lineWidth = 6; ctx.beginPath(); ctx.moveTo(28, 2); ctx.bezierCurveTo(50, 4, 66, 18, 62, 38); ctx.bezierCurveTo(59, 50, 44, 48, 46, 38); ctx.stroke();      // lower scroll
+      ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(14, 36); ctx.bezierCurveTo(26, 38, 32, 50, 26, 56); ctx.bezierCurveTo(21, 60, 17, 54, 21, 51); ctx.stroke();    // inner curl
+      ctx.beginPath(); ctx.moveTo(10, 62); ctx.bezierCurveTo(24, 54, 38, 60, 40, 74); ctx.bezierCurveTo(28, 76, 18, 72, 10, 62); ctx.fill();                       // leaf
+      ctx.lineWidth = 3.5; ctx.beginPath(); ctx.moveTo(6, 88); ctx.bezierCurveTo(18, 90, 26, 100, 22, 110); ctx.bezierCurveTo(19, 116, 13, 112, 16, 107); ctx.stroke();  // tendril
+      ctx.beginPath(); ctx.moveTo(4, -86); ctx.bezierCurveTo(14, -100, 26, -102, 30, -96); ctx.bezierCurveTo(22, -94, 14, -90, 4, -80); ctx.fill();                // crown leaf
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.moveTo(0, -112); ctx.bezierCurveTo(6, -102, 7, -92, 0, -82); ctx.bezierCurveTo(-7, -92, -6, -102, 0, -112); ctx.fill();                  // crown flame
+    ctx.fillStyle = PAPER;
+    ctx.beginPath(); ctx.moveTo(0, -66); ctx.lineTo(6, -58); ctx.lineTo(0, -50); ctx.lineTo(-6, -58); ctx.fill();                                                // brow jewel
+    for (const m of [1, -1]) ctx.fillRect(m * 4 - 1.5, 44, 3, 34);                                                                                                // stem slots
+    ctx.restore();
+    eyes(x, y - 22, 17, 1.15);
+  };
+  const imp = (x, y) => {
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = INK; ctx.strokeStyle = INK; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(0, 0, 13, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(-5, 11); ctx.lineTo(0, 24); ctx.lineTo(5, 11); ctx.fill();
+    for (const m of [1, -1]) {
+      ctx.save(); ctx.scale(m, 1);
+      ctx.beginPath(); ctx.moveTo(6, -9); ctx.lineTo(14, -25); ctx.lineTo(13, -5); ctx.fill();                                                                     // ear
+      ctx.beginPath(); ctx.moveTo(9, -3); ctx.bezierCurveTo(20, -16, 38, -18, 46, -6);                                                                               // bat wing, scalloped below
+      ctx.quadraticCurveTo(40, -1, 38, 8); ctx.quadraticCurveTo(32, 1, 27, 10); ctx.quadraticCurveTo(21, 3, 13, 10); ctx.closePath(); ctx.fill();
+      ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(3, 22); ctx.bezierCurveTo(8, 32, 18, 32, 18, 26); ctx.stroke();                                              // tail curl
+      ctx.restore();
+    }
+    ctx.restore();
+    eyes(x, y - 1, 5.5, 0.42);
+  };
+  // a little cartouche of scrolls with a pair of eyes peering out of it
+  const peeper = (x, y) => {
+    ctx.save(); ctx.translate(x, y);
+    ctx.strokeStyle = INK; ctx.fillStyle = INK; ctx.lineWidth = 4; ctx.lineCap = 'round';
+    for (const m of [1, -1]) {
+      ctx.save(); ctx.scale(m, 1);
+      ctx.beginPath(); ctx.moveTo(3, -16); ctx.bezierCurveTo(22, -22, 28, 0, 14, 7); ctx.bezierCurveTo(7, 10, 4, 4, 9, 2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(4, 12); ctx.bezierCurveTo(14, 12, 22, 20, 20, 28); ctx.bezierCurveTo(12, 26, 6, 20, 4, 12); ctx.fill();
+      ctx.restore();
+    }
+    ctx.beginPath(); ctx.moveTo(0, -26); ctx.bezierCurveTo(4, -20, 4, -16, 0, -12); ctx.bezierCurveTo(-4, -16, -4, -20, 0, -26); ctx.fill();
+    ctx.restore();
+    eyes(x, y - 3, 6, 0.5);
+  };
+  for (const [x, y] of [[128, 128], [0, 384]]) stamp(x, y, 132, warden);
+  for (const [x, y] of [[0, 128], [128, 384]]) stamp(x, y, 50, imp);
+  for (const [x, y] of [[64, 256], [192, 256], [64, 0], [192, 0]]) stamp(x, y, 34, peeper);
+  grain(ctx, W, H, 0.05, 2000);
   return { map: tex(c), emissive: tex(ce) };
 }
 

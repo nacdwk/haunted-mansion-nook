@@ -1,0 +1,53 @@
+{
+ "triangles": 34232,
+ "materials": [
+  "bark",
+  "brass",
+  "ceiling",
+  "cloth",
+  "curtain",
+  "ebony",
+  "gilt",
+  "inlay_dark",
+  "inlay_gold",
+  "inlay_light",
+  "iron",
+  "ivory",
+  "mahogany",
+  "marble",
+  "marble_dark",
+  "mirror",
+  "parquet",
+  "porcelain",
+  "rug",
+  "runner",
+  "sheet",
+  "silver",
+  "velvet",
+  "void",
+  "wallpaper",
+  "walnut",
+  "wax",
+  "wood_panel"
+ ],
+ "flames": 15,
+ "pipes": 19,
+ "samples": 256,
+ "warm": {
+  "scale": 9.278400421142578,
+  "size": 2048,
+  "seconds": 26.7,
+  "mean": 0.46720263361930847,
+  "p50": 0.1828925907611847,
+  "clipped": 0.0017774105072021484
+ },
+ "cool": {
+  "scale": 3.200297789112466,
+  "size": 1024,
+  "seconds": 8.7,
+  "mean": 0.3616295385819288,
+  "p50": 0.2111029331673709,
+  "clipped": 0.001216888427734375
+ },
+ "seconds": 40.4
+}

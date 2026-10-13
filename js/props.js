@@ -190,20 +190,55 @@ export function pedestal(parent, x, y, z, h = 1.1, m = MAT.marble) {
   cyl(0.18, 0.22, h - 0.24, m, x, y + 0.12 + (h - 0.24) / 2, z, parent, 10);
   boxA(x - 0.28, x + 0.28, y + h - 0.12, y + h, z - 0.28, z + 0.28, m, parent);
 }
-// marble bust; returns the head group so it can turn
+// ---- sculpted figures (blender/figures.py), once assets/figures.glb has loaded
+// A copy of one of the figures' parts. It's kept out of the static-mesh merge, which would drop the ambient occlusion
+// in its vertex colours; swap maps its materials' names to the site's materials to use instead.
+export function figure(name, parent, swap = {}) {
+  const o = W.figures[name].clone();
+  o.userData.keep = o.userData.noCompact = true;
+  o.traverse((m) => {
+    if (!m.isMesh) return;
+    m.castShadow = false; m.receiveShadow = true;
+    if (swap[m.material.name]) m.material = swap[m.material.name];
+  });
+  parent.add(o);
+  return o;
+}
+// the same material, shaded by a figure's vertex colours
+export function withAO(m) {
+  if (!m.userData.ao) { m.userData.ao = m.clone(); m.userData.ao.vertexColors = true; }
+  return m.userData.ao;
+}
+
+// marble bust; returns the head group so it can turn. The sculpted ones dress by their hat: a frock coat and cravat
+// under a top hat, a bow tie under a bowler, a shawl and gown with a bun, and a toga with curls, with a laurel, or bare.
+const BUST_LOOKS = { top: ['coat', 'fringe', 'hat-top'], bowler: ['coat-bow', 'fringe', 'hat-bowler'], bun: ['gown', 'bun'], curls: ['toga', 'curls'], laurel: ['toga', 'wavy', 'laurel'] };
 export function bust(parent, x, y, z, { s = 1, m = MAT.marble, ry = 0, faceMap = null, hat = null } = {}) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.scale.setScalar(s); parent.add(g);
+  const head = new THREE.Group(); head.position.y = 0.6; head.userData.keepGroup = true;
+  // a singing bust's painted eyes and mouth, whose frames js/outside.js swaps
+  const fm = faceMap && new THREE.MeshStandardMaterial({ map: faceMap, transparent: true, roughness: 0.6, emissiveMap: faceMap, emissive: 0xffffff, emissiveIntensity: 0.35, depthWrite: false });
+  if (fm) head.userData.face = fm;
+  if (W.figures) {
+    const [body, hair, extra] = BUST_LOOKS[hat] || ['toga', 'short'];
+    const sw = { marble: withAO(m) };
+    figure(`bust-body-${body}`, g, sw);
+    g.add(head);
+    figure('bust-head', head, sw);
+    figure(`bust-hair-${hair}`, head, sw);
+    if (extra) figure(`bust-${extra}`, head, sw);
+    if (fm) figure('bust-face', head, { bust_face: fm });
+    return { g, head };
+  }
   const sh = new THREE.Mesh(new THREE.SphereGeometry(0.42, 16, 10, 0, TAU, 0, Math.PI / 2), m); sh.scale.set(1, 0.6, 0.62); g.add(sh);
   boxA(-0.36, 0.36, -0.06, 0.02, -0.2, 0.2, m, g);
   cyl(0.11, 0.13, 0.26, m, 0, 0.32, 0, g, 10);
-  const head = new THREE.Group(); head.position.y = 0.6; head.userData.keepGroup = true; g.add(head);
+  g.add(head);
   const hd = sphere(0.24, m, 0, 0, 0, head, 16, 12); hd.scale.set(0.9, 1.08, 0.98);
   const nose = new THREE.Mesh(new THREE.ConeGeometry(0.045, 0.12, 6), m); nose.rotation.x = Math.PI / 2; nose.position.set(0, -0.02, 0.24); head.add(nose);
-  if (faceMap) {
-    const fm = new THREE.MeshStandardMaterial({ map: faceMap, transparent: true, roughness: 0.6, emissiveMap: faceMap, emissive: 0xffffff, emissiveIntensity: 0.35, depthWrite: false });
+  if (fm) {
     const cap = new THREE.Mesh(new THREE.SphereGeometry(0.248, 16, 12, Math.PI * 0.5 - 0.95, 1.9, Math.PI * 0.22, Math.PI * 0.62), fm);
     cap.scale.set(0.9, 1.08, 0.98); cap.rotation.y = 0; head.add(cap);
-    head.userData.face = fm;
   } else {
     for (const sx of [-1, 1]) { const e = sphere(0.035, mat('#cfcad6', 0.5), sx * 0.08, 0.04, 0.2, head, 6, 5); }
   }
@@ -287,20 +322,28 @@ export function coffin(parent, { len = 2.2, w = 0.75, h = 0.5, wood = MAT.mahoga
 }
 export function raven(parent, x, y, z, ry = 0, s = 1) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.scale.setScalar(s); g.userData.keepGroup = true; parent.add(g);
-  const m = mat('#0c0a10', 0.55, 0.1, { flat: true });
-  const body = new THREE.Mesh(new THREE.SphereGeometry(0.16, 7, 5), m); body.scale.set(0.8, 0.85, 1.4); body.position.y = 0.2; body.rotation.x = -0.4; g.add(body);
-  const tail = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.32, 4), m); tail.position.set(0, 0.1, -0.26); tail.rotation.x = -2.2; g.add(tail);
-  const head = new THREE.Group(); head.position.set(0, 0.38, 0.12); head.userData.keepGroup = true; g.add(head);
-  const hd = new THREE.Mesh(new THREE.SphereGeometry(0.09, 7, 5), m); head.add(hd);
-  const beak = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 4), mat('#1e1a22', 0.4)); beak.rotation.x = Math.PI / 2; beak.position.set(0, -0.01, 0.12); head.add(beak);
-  for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.018, 5, 4), glow('#ff3030', 6)); e.position.set(sx * 0.055, 0.02, 0.06); head.add(e); }
-  const wings = [];
-  for (const sx of [-1, 1]) {
-    const wp = new THREE.Group(); wp.position.set(sx * 0.1, 0.26, 0); wp.userData.keepGroup = true; g.add(wp);
-    const wm = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.36, 3), m); wm.rotation.set(-1.9, 0, sx * 0.2); wm.position.set(sx * 0.02, -0.02, -0.08); wm.scale.set(1, 1, 0.35); wp.add(wm);
-    wings.push(wp);
+  const head = new THREE.Group(); head.position.set(0, 0.38, 0.12); head.userData.keepGroup = true;
+  const wings = [-1, 1].map((sx) => { const wp = new THREE.Group(); wp.position.set(sx * 0.1, 0.26, 0); wp.userData.keepGroup = true; return wp; });
+  if (W.figures) {                                    // sculpted: feathered wings and tail, a heavy beak, gripping feet
+    figure('raven-body', g);
+    g.add(head, ...wings);
+    figure('raven-head', head, { raven_eye: glow('#ff3030', 6) });
+    figure('raven-wing-l', wings[0]); figure('raven-wing-r', wings[1]);
+  } else {
+    const m = mat('#0c0a10', 0.55, 0.1, { flat: true });
+    const body = new THREE.Mesh(new THREE.SphereGeometry(0.16, 7, 5), m); body.scale.set(0.8, 0.85, 1.4); body.position.y = 0.2; body.rotation.x = -0.4; g.add(body);
+    const tail = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.32, 4), m); tail.position.set(0, 0.1, -0.26); tail.rotation.x = -2.2; g.add(tail);
+    g.add(head);
+    const hd = new THREE.Mesh(new THREE.SphereGeometry(0.09, 7, 5), m); head.add(hd);
+    const beak = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.16, 4), mat('#1e1a22', 0.4)); beak.rotation.x = Math.PI / 2; beak.position.set(0, -0.01, 0.12); head.add(beak);
+    for (const sx of [-1, 1]) { const e = new THREE.Mesh(new THREE.SphereGeometry(0.018, 5, 4), glow('#ff3030', 6)); e.position.set(sx * 0.055, 0.02, 0.06); head.add(e); }
+    wings.forEach((wp, i) => {
+      const sx = i ? 1 : -1;
+      g.add(wp);
+      const wm = new THREE.Mesh(new THREE.ConeGeometry(0.1, 0.36, 3), m); wm.rotation.set(-1.9, 0, sx * 0.2); wm.position.set(sx * 0.02, -0.02, -0.08); wm.scale.set(1, 1, 0.35); wp.add(wm);
+    });
+    for (const sx of [-1, 1]) cyl(0.008, 0.008, 0.1, mat('#3a3020', 0.6), sx * 0.04, 0.05, 0.02, g, 3);
   }
-  for (const sx of [-1, 1]) cyl(0.008, 0.008, 0.1, mat('#3a3020', 0.6), sx * 0.04, 0.05, 0.02, g, 3);
   const st = { flap: 0, look: 0, seed: Math.random() * 10 };
   onUpdate((t, dt) => {
     const k = st.seed;
@@ -424,11 +467,14 @@ export function deadTree(parent, x, y, z, { h = 6, r = 0.35, seed = 1, m = MAT.b
   for (let i = 0; i < 5; i++) { const a = i / 5 * TAU + rnd(); const rt = new THREE.Mesh(new THREE.ConeGeometry(r * 0.6, r * 3, 5), m); rt.position.set(Math.cos(a) * r * 0.9, r * 0.4, Math.sin(a) * r * 0.9); rt.rotation.set(Math.sin(a) * 1.2, 0, -Math.cos(a) * 1.2); g.add(rt); }
   return g;
 }
-export function tombstone(parent, x, y, z, ry = 0, { kind = 0, s = 1, m = MAT.tomb, face = null } = {}) {
-  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.rotation.z = rand(-0.06, 0.06); g.scale.setScalar(s); parent.add(g);
+// faceOnly: just the epitaph, for a baked stone that sits in the same place (blender/grounds.py)
+export function tombstone(parent, x, y, z, ry = 0, { kind = 0, s = 1, m = MAT.tomb, face = null, tilt = null, faceOnly = false } = {}) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.rotation.z = tilt ?? rand(-0.06, 0.06); g.scale.setScalar(s); parent.add(g);
   if (kind === 0) { // rounded top
-    boxA(-0.4, 0.4, 0, 0.8, -0.1, 0.1, m, g);
-    const top = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.2, 12, 1, false, -Math.PI / 2, Math.PI), m); top.rotation.x = Math.PI / 2; top.rotation.z = Math.PI / 2; top.position.y = 0.8; g.add(top);
+    if (!faceOnly) {
+      boxA(-0.4, 0.4, 0, 0.8, -0.1, 0.1, m, g);
+      const top = new THREE.Mesh(new THREE.CylinderGeometry(0.4, 0.4, 0.2, 12, 1, false, -Math.PI / 2, Math.PI), m); top.rotation.x = Math.PI / 2; top.rotation.z = Math.PI / 2; top.position.y = 0.8; g.add(top);
+    }
     if (face) { const f = mesh(new THREE.PlaneGeometry(0.72, 0.9), new THREE.MeshStandardMaterial({ map: face, roughness: 0.9 }), 0, 0.62, 0.101, g); }
   } else if (kind === 1) { // cross
     boxA(-0.08, 0.08, 0, 1.3, -0.08, 0.08, m, g);
@@ -438,12 +484,15 @@ export function tombstone(parent, x, y, z, ry = 0, { kind = 0, s = 1, m = MAT.to
     const ob = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.2, 1.6, 4), m); ob.rotation.y = Math.PI / 4; ob.position.y = 1.1; g.add(ob);
     const tip = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.25, 4), m); tip.rotation.y = Math.PI / 4; tip.position.y = 2.02; g.add(tip);
   } else { // slab with a pointed gothic top
-    boxA(-0.34, 0.34, 0, 0.9, -0.09, 0.09, m, g);
-    const sh = new THREE.Shape(); sh.moveTo(-0.34, 0); sh.quadraticCurveTo(-0.3, 0.32, 0, 0.5); sh.quadraticCurveTo(0.3, 0.32, 0.34, 0); sh.closePath();
-    const eg = new THREE.ExtrudeGeometry(sh, { depth: 0.18, bevelEnabled: false }); eg.translate(0, 0.9, -0.09);
-    g.add(new THREE.Mesh(eg, m));
+    if (!faceOnly) {
+      boxA(-0.34, 0.34, 0, 0.9, -0.09, 0.09, m, g);
+      const sh = new THREE.Shape(); sh.moveTo(-0.34, 0); sh.quadraticCurveTo(-0.3, 0.32, 0, 0.5); sh.quadraticCurveTo(0.3, 0.32, 0.34, 0); sh.closePath();
+      const eg = new THREE.ExtrudeGeometry(sh, { depth: 0.18, bevelEnabled: false }); eg.translate(0, 0.9, -0.09);
+      g.add(new THREE.Mesh(eg, m));
+    }
     if (face) { const f = mesh(new THREE.PlaneGeometry(0.6, 0.75), new THREE.MeshStandardMaterial({ map: face, roughness: 0.9 }), 0, 0.55, 0.091, g); }
   }
+  if (faceOnly) return g;
   // dirt mound
   const mound = new THREE.Mesh(new THREE.SphereGeometry(0.5, 8, 5, 0, TAU, 0, Math.PI / 2), mat('#2c2420', 1, 0, { flat: true })); mound.scale.set(0.9, 0.18, 1.6); mound.position.set(0, 0, 0.75); g.add(mound);
   return g;

@@ -480,6 +480,41 @@ export function crystalFaces() {
   return frames;
 }
 
+// Madame Leota's features for her sculpted head (blender/figures.py Fig_leota-face), on a transparent canvas laid over
+// her face: closed, lashed eyes under shadowed lids, arched brows, and lips that part as she speaks
+export function leotaFeatures() {
+  const frames = [];
+  for (let k = 0; k < 4; k++) {
+    const [c, ctx] = P(256, 256);
+    const cx = 128, ey = 102, ly = 168;
+    ctx.lineCap = 'round';
+    for (const s of [-1, 1]) {
+      const ex = cx + s * 29;
+      const lid = ctx.createRadialGradient(ex, ey - 6, 2, ex, ey - 6, 22);
+      lid.addColorStop(0, 'rgba(30,120,90,0.45)'); lid.addColorStop(1, 'rgba(30,120,90,0)');
+      ctx.fillStyle = lid; ctx.fillRect(ex - 24, ey - 30, 48, 40);
+      ctx.strokeStyle = 'rgba(16,64,48,0.95)'; ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.moveTo(ex - 15, ey - 1); ctx.quadraticCurveTo(ex, ey + 7, ex + 15, ey - 1); ctx.stroke();
+      ctx.lineWidth = 2;
+      for (let i = 0; i < 5; i++) {
+        const t = (i + 0.5) / 5, x = ex - 13 + t * 26, y = ey + 3 * Math.sin(Math.PI * t);
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + s * (t - 0.5) * 4, y + 5); ctx.stroke();
+      }
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.moveTo(ex - s * 17, ey - 17); ctx.quadraticCurveTo(ex + s * 2, ey - 29, ex + s * 18, ey - 19); ctx.stroke();
+    }
+    const open = [0.0, 0.35, 0.7, 1.0][k];
+    ctx.fillStyle = 'rgba(24,96,72,0.85)';
+    ctx.beginPath(); ctx.moveTo(cx - 17, ly);
+    ctx.quadraticCurveTo(cx - 8, ly - 9 - open * 3, cx, ly - 5 - open * 3); ctx.quadraticCurveTo(cx + 8, ly - 9 - open * 3, cx + 17, ly);
+    ctx.quadraticCurveTo(cx, ly + 11 + open * 6, cx - 17, ly); ctx.fill();
+    ctx.fillStyle = 'rgba(10,40,30,0.95)';
+    ctx.beginPath(); ctx.ellipse(cx, ly + 1 + open * 1.5, 12, 1.2 + open * 6, 0, 0, TAU); ctx.fill();
+    frames.push(tex(c, { repeat: false, srgb: true }));
+  }
+  return frames;
+}
+
 // singing-bust faces: projected features (eyes + mouth frames), transparent background
 export function bustFaces(kind = 0) {
   const frames = [];
