@@ -26,14 +26,14 @@ export function buildMaterials() {
   T.checkerGreen = TX.checker('#5f7a6a', '#1d2a24');
   T.plaster = TX.plaster('#cbbfae');
   T.plasterCool = TX.plaster('#8f87a0');
-  const eye = TX.eyePaper();
+  const eye = TX.hauntPaper();
   T.papEyes = eye.map; T.papEyesGlow = eye.emissive;
   T.papLibrary = TX.damask('#1d3026', '#2b4636', { accent: '#6b7a3a' });
   T.papConserv = TX.damask('#1f2c2a', '#2c403a');
   T.papSeance = TX.damask('#24163a', '#3a2358', { accent: '#7a5aa0' });
   T.papBall = TX.damask('#55293f', '#74405a', { accent: '#c9a24a' });
   T.papAttic = TX.damask('#353b4a', '#41495c', { stripe: false });
-  T.papTower = TX.damask('#4a1420', '#68202f', { accent: '#c9a24a' });
+  T.papTower = TX.stripes();
   T.papBase = TX.damask('#1e1630', '#2c2046', { stripe: false });
   T.wainscot = TX.wainscot('#3a2216');
   T.wainscotDark = TX.wainscot('#24140c');
@@ -71,6 +71,7 @@ export function buildMaterials() {
   T.duel = PT.duelists();
   T.wedding = PT.weddingPortraits();
   T.leota = PT.crystalFaces();
+  T.leotaFeatures = PT.leotaFeatures();
   T.bust = [0, 1, 2, 3, 0].map((k) => PT.bustFaces(k));
 
   // --- materials ---
@@ -101,13 +102,13 @@ export function buildMaterials() {
   MAT.checkerGreen = texMat(T.checkerGreen, { uv: 4, rough: 0.5 });
   MAT.plaster = texMat(T.plaster, { uv: 6 });
   MAT.plasterCool = texMat(T.plasterCool, { uv: 6 });
-  MAT.papEyes = texMat(T.papEyes, { uv: 2.2, emissiveMap: T.papEyesGlow, emissive: '#ffb347', ei: 0.5 });
+  MAT.papEyes = texMat(T.papEyes, { uv: [1.5, 3.0], emissiveMap: T.papEyesGlow, emissive: '#ffb347', ei: 0.5 });
   MAT.papLibrary = texMat(T.papLibrary, { uv: 2.4 });
   MAT.papConserv = texMat(T.papConserv, { uv: 2.4 });
   MAT.papSeance = texMat(T.papSeance, { uv: 2.4 });
   MAT.papBall = texMat(T.papBall, { uv: 2.6 });
   MAT.papAttic = texMat(T.papAttic, { uv: 2.4 });
-  MAT.papTower = texMat(T.papTower, { uv: 2.0 });
+  MAT.papTower = texMat(T.papTower, { uv: 1.6 });
   MAT.papBase = texMat(T.papBase, { uv: 2.2 });
   MAT.wainscot = texMat(T.wainscot, { uv: 2.4 });
   MAT.wainscotDark = texMat(T.wainscotDark, { uv: 2.4 });
