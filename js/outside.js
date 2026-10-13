@@ -11,6 +11,21 @@ import * as P from './props.js';
 const sfx = (n, ...a) => W.audio?.sfx?.(n, ...a);
 const say = (text, opts) => W.ui?.say?.(text, opts);
 
+// graves: x, z, turn, kind (0 rounded, 1 cross, 2 obelisk, 3 gothic), epitaph (-1 for none), scale, tilt, dark stone.
+// blender/grounds.py builds the baked stones from the same tables, so their epitaphs land on their faces.
+const GRAVES = [
+  [15.8, 4.2, 0.2, 0, 0, 1.05, 0.03, 0], [17.2, 5.4, -0.15, 3, 1, 0.95, -0.04, 1], [16.0, 2.0, 0.1, 1, -1, 1.1, 0.05, 0],
+  [18.6, 3.1, 0.25, 2, -1, 1.0, -0.02, 1], [15.6, -5.6, 0.3, 0, 2, 1.12, -0.05, 1], [17.8, -6.4, -0.2, 3, 3, 0.92, 0.04, 0],
+  [19.6, -6.0, 0.1, 1, -1, 1.0, -0.03, 1], [25.0, -6.2, 0.0, 3, 4, 1.08, 0.02, 0], [27.2, -6.6, -0.2, 0, 5, 0.97, -0.06, 1],
+  [29.6, -6.0, 0.25, 2, -1, 1.15, 0.03, 0], [30.6, -3.6, -0.5, 1, -1, 0.9, 0.05, 1], [20.4, 6.8, 0.4, 0, -1, 1.02, -0.04, 0],
+  [30.4, 1.4, -0.4, 3, -1, 0.94, 0.06, 1], [26.4, -3.6, 0.15, 1, -1, 1.06, -0.02, 0],
+];
+const PETS = [
+  [-22.6, 7.1, 0.12, 0, 0, 0.42, -0.03, 0], [-21.35, 8.2, -0.15, 0, 1, 0.42, 0.04, 0], [-20.1, 7.1, 0.05, 0, 2, 0.42, 0.02, 1],
+  [-18.85, 8.2, -0.08, 0, 3, 0.42, -0.05, 0], [-19.5, 9.3, 0.3, 1, -1, 0.5, 0.03, 1],
+];
+const grave = (S, [x, z, ry, kind, , s, tilt, dark], face) => P.tombstone(S, x, 0, z, ry, { kind, s, tilt, m: dark ? MAT.tombDark : MAT.tomb, face, faceOnly: !!W.bakedGrounds });
+
 export function buildOutside(root) {
   const S = new THREE.Group(), G = new THREE.Group(); root.add(G);
   frontYard(S, G);
@@ -34,33 +49,40 @@ function pillar(S, x, z, h = 2.0) {
 
 // ------------------------------------------------------------------ front yard
 function frontYard(S, G) {
-  // porch & steps
-  boxA(-7.7, 7.7, 0, D.F1, 5.0, 7.75, MAT.stoneWarm, S);
-  boxA(-7.8, 7.8, D.F1 - 0.05, D.F1 + 0.02, 4.95, 7.85, MAT.stoneDark, S);
-  for (let i = 0; i < 3; i++) boxA(-2.3 + i * 0.12, 2.3 - i * 0.12, 0, D.F1 - i * 0.27 - 0.0, 7.75, 8.8 - i * 0.36, MAT.stone, S);
+  // porch & steps (the baked exterior brings its own)
+  if (!W.bakedExterior) {
+    boxA(-7.7, 7.7, 0, D.F1, 5.0, 7.75, MAT.stoneWarm, S);
+    boxA(-7.8, 7.8, D.F1 - 0.05, D.F1 + 0.02, 4.95, 7.85, MAT.stoneDark, S);
+    for (let i = 0; i < 3; i++) boxA(-2.3 + i * 0.12, 2.3 - i * 0.12, 0, D.F1 - i * 0.27 - 0.0, 7.75, 8.8 - i * 0.36, MAT.stone, S);
+  }
+  // the baked grounds (blender/grounds.py) bring their own path, railings, gate, pillars, lamp posts, bushes,
+  // gravestones (the epitaphs stay painted), trees and hearse; the lanterns and anything that moves stay here
+  const B = !!W.bakedGrounds;
   // flagstone path
-  for (let z = 8.95; z < 10.1; z += 0.55) for (const x of [-0.6, 0.6]) boxA(x - 0.5 + rand(-0.05, 0.05), x + 0.5, 0, 0.05, z, z + 0.48, MAT.flags, S);
+  if (!B) for (let z = 8.95; z < 10.1; z += 0.55) for (const x of [-0.6, 0.6]) boxA(x - 0.5 + rand(-0.05, 0.05), x + 0.5, 0, 0.05, z, z + 0.48, MAT.flags, S);
   // fence across the front with a gate
-  fenceRun(S, D.PX0 + 0.3, 10.22, -1.6, 10.22);
-  fenceRun(S, 1.6, 10.22, 15.0, 10.22);
-  fenceRun(S, 22.9, 10.22, D.PX1 - 0.3, 10.22);
-  fenceRun(S, D.PX0 + 0.3, 10.22, D.PX0 + 0.3, 5.6);
-  pillar(S, -1.6, 10.2); pillar(S, 1.6, 10.2);
-  pillar(S, 15.0, 10.2, 1.7); pillar(S, 22.9, 10.2, 1.7);
+  if (!B) {
+    fenceRun(S, D.PX0 + 0.3, 10.22, -1.6, 10.22);
+    fenceRun(S, 1.6, 10.22, 15.0, 10.22);
+    fenceRun(S, 22.9, 10.22, D.PX1 - 0.3, 10.22);
+    fenceRun(S, D.PX0 + 0.3, 10.22, D.PX0 + 0.3, 5.6);
+    pillar(S, -1.6, 10.2); pillar(S, 1.6, 10.2);
+    pillar(S, 15.0, 10.2, 1.7); pillar(S, 22.9, 10.2, 1.7);
+  }
   const gl = [];
   for (const x of [-1.6, 1.6]) {
     const l = P.lantern(S, x, 2.18, 10.2, { s: 1.35 });
     gl.push(l);
   }
   // open gates
-  for (const [x, ry] of [[-1.5, -1.2], [1.5, Math.PI + 1.2]]) {
+  if (!B) for (const [x, ry] of [[-1.5, -1.2], [1.5, Math.PI + 1.2]]) {
     const g = mesh(new THREE.PlaneGeometry(1.5, 1.5), MAT.ironFence, 0, 0, 0, S);
     g.geometry.translate(0.75, 0.75, 0);
     g.position.set(x, 0.05, 10.2); g.rotation.y = ry;
   }
   // bushes along the foundation
   const bushM = flat('#22302a');
-  for (const x of [-12.8, -10.0, -8.4, 8.5, 10.4, 12.9]) { const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.75, 0), bushM); b.position.set(x, 0.45, 5.6); b.scale.set(1.2, 0.8, 0.8); S.add(b); }
+  if (!B) for (const x of [-12.8, -10.0, -8.4, 8.5, 10.4, 12.9]) { const b = new THREE.Mesh(new THREE.IcosahedronGeometry(0.75, 0), bushM); b.position.set(x, 0.45, 5.6); b.scale.set(1.2, 0.8, 0.8); S.add(b); }
   // jack-o'-lanterns on the steps and path
   P.jackOLantern(S, -1.9, D.F1 - 0.27, 8.2, 0.3, 1.0);
   P.jackOLantern(S, 2.0, D.F1 - 0.54, 8.55, -0.4, 0.85);
@@ -68,18 +90,15 @@ function frontYard(S, G) {
   P.jackOLantern(S, 6.6, D.F1, 7.2, -0.2, 0.9);
   // gas lamps
   for (const x of [-4.0, 4.0]) {
-    cyl(0.07, 0.1, 2.6, MAT.iron, x, 1.3, 9.4, S, 8);
+    if (!B) cyl(0.07, 0.1, 2.6, MAT.iron, x, 1.3, 9.4, S, 8);
     const lt = P.lantern(S, x, 2.6, 9.4, { s: 1.2 });
   }
   // the hearse and its invisible horse
-  const hz = hearse(G, -12.0, 0, 8.0);
+  const hz = hearse(G, -12.0, 0, 8.0, B);
   // pet cemetery
   const pets = [['FIFI', 'good girl'], ['MR. WHISKERS', '9 of 9'], ['CROAKER', 'ribbit'], ['POLLY', 'said it all']];
-  pets.forEach(([n, l], i) => {
-    const ep = TX.epitaph([l], { w: 192, h: 192, title: n });
-    P.tombstone(S, -22.6 + i * 1.25, 0, 7.1 + (i % 2) * 1.1, rand(-0.2, 0.2), { kind: 0, s: 0.42, face: ep });
-  });
-  P.tombstone(S, -19.5, 0, 9.3, 0.3, { kind: 1, s: 0.5 });
+  pets.forEach(([n, l], i) => grave(S, PETS[i], TX.epitaph([l], { w: 192, h: 192, title: n })));
+  if (!B) grave(S, PETS[4], null);
   const pup = makeGhost({ height: 0.7, width: 0.28, arms: false, color: 0xb8fff0, eyes: true });
   pup.position.set(-20.8, 0.2, 8.4); G.add(pup);
   const ears = [];
@@ -87,8 +106,10 @@ function frontYard(S, G) {
   const petPup = () => { sfx('bark'); say('Woof. (Spectrally.)', {}); };
   hotspot(pup, 'yard', 'A very good ghost', petPup);
   // the great oak with hanging moss behind the tower
-  P.deadTree(S, -21.5, 0, -5.2, { h: 15, r: 0.7, seed: 7, m: MAT.bark, moss: true, spread: 1.1 });
-  P.deadTree(S, -23.0, 0, 3.0, { h: 6.5, r: 0.28, seed: 3, m: MAT.barkLight });
+  if (!B) {
+    P.deadTree(S, -21.5, 0, -5.2, { h: 15, r: 0.7, seed: 7, m: MAT.bark, moss: true, spread: 1.1 });
+    P.deadTree(S, -23.0, 0, 3.0, { h: 6.5, r: 0.28, seed: 3, m: MAT.barkLight });
+  }
   const yard = defineRoom('yard', {
     name: 'The Front Lawn',
     blurb: 'The hearse is waiting for a passenger. The horse is waiting too, though nobody has ever seen it.',
@@ -99,15 +120,22 @@ function frontYard(S, G) {
   yard.actions.push({ label: 'Pat the horse that is not there', fn: hz.pat }, { label: 'Pet the ghost dog', fn: petPup });
 }
 
-function hearse(G, x, y, z) {
+function hearse(G, x, y, z, baked) {
   const h = new THREE.Group(); h.position.set(x, y, z); h.userData.keepGroup = true; G.add(h);
   const body = MAT.black, trim = MAT.gold;
   const S = new THREE.Group(); h.add(S);
+  W.hearseBody = S;   // the baked hearse goes in here
+  const glassM = new THREE.MeshStandardMaterial({ color: 0x0a1a14, emissive: 0x1b6a48, emissiveIntensity: 0.9, roughness: 0.1, metalness: 0.4 });
+  for (const sz of [-0.63, 0.63]) boxA(-1.1, 0.9, 1.15, 2.25, sz - 0.01, sz + 0.01, glassM, S);
+  for (const sz of [-0.62, 0.62]) { const l = P.lantern(S, 1.95, 1.75, sz, { s: 0.85, m: MAT.flameGreen }); }
+  if (!baked) hearseBody(S, body, trim);
+  hearseHarness(h, S);
+  return { h, pat: h.userData.pat };
+}
+function hearseBody(S, body, trim) {
   boxA(-1.4, 1.2, 0.85, 2.45, -0.62, 0.62, body, S);
   boxA(-1.5, 1.3, 2.45, 2.62, -0.7, 0.7, trim, S);
   boxA(-1.45, 1.25, 2.62, 2.85, -0.66, 0.66, body, S);
-  const glassM = new THREE.MeshStandardMaterial({ color: 0x0a1a14, emissive: 0x1b6a48, emissiveIntensity: 0.9, roughness: 0.1, metalness: 0.4 });
-  for (const sz of [-0.63, 0.63]) boxA(-1.1, 0.9, 1.15, 2.25, sz - 0.01, sz + 0.01, glassM, S);
   for (const sz of [-0.64, 0.64]) for (const sx of [-1.15, -0.1, 0.95]) boxA(sx - 0.06, sx + 0.06, 1.1, 2.3, sz - 0.02, sz + 0.02, trim, S);
   // coffin silhouette inside
   boxA(-1.0, 0.8, 1.25, 1.55, -0.3, 0.3, MAT.mahogany, S);
@@ -130,10 +158,10 @@ function hearse(G, x, y, z) {
     }
   };
   wheel(-1.0, 0.72); wheel(1.25, 0.55);
-  // lamps
-  for (const sz of [-0.62, 0.62]) { const l = P.lantern(S, 1.95, 1.75, sz, { s: 0.85, m: MAT.flameGreen }); }
-  // shafts and the harness of the horse that is not there
+  // shafts for the horse that is not there
   for (const sz of [-0.42, 0.42]) { const sh = cyl(0.035, 0.035, 3.4, MAT.walnut, 3.4, 0.95, sz, S, 6); sh.rotation.z = Math.PI / 2 + 0.06; }
+}
+function hearseHarness(h, S) {
   const harness = new THREE.Group(); harness.position.set(3.7, 0, 0); harness.userData.keepGroup = true; h.add(harness);
   const strap = mat('#2a1a12', 0.6);
   const collar = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.09, 8, 18), strap); collar.position.set(0.9, 1.75, 0); collar.rotation.y = Math.PI / 2; collar.scale.set(1, 1.25, 1); harness.add(collar);
@@ -161,26 +189,31 @@ function hearse(G, x, y, z) {
   const pat = () => { hst.toss = 1; sfx('neigh'); say('Something warm snorts into your palm.', {}); };
   hotspot(harness, 'yard', 'Pat the horse (if you can find it)', pat);
   hotspot(S, 'yard', 'The hearse', () => { hst.toss = 1; sfx('neigh'); });
-  return { h, pat };
+  h.userData.pat = pat;
 }
 
 // ------------------------------------------------------------------ graveyard
 function graveyard(S, G) {
+  const B = !!W.bakedGrounds;
   // perimeter: low stone wall at the back & right, iron fence on top
-  boxA(14.6, D.PX1 - 0.2, 0, 0.55, D.PZ0 + 0.2, D.PZ0 + 0.7, MAT.stoneWarm, S);
-  boxA(D.PX1 - 0.7, D.PX1 - 0.2, 0, 0.55, D.PZ0 + 0.2, 10.0, MAT.stoneWarm, S);
-  fenceRun(S, D.PX1 - 0.45, D.PZ0 + 0.45, D.PX1 - 0.45, 10.0, 1.1).position.y += 0.55;
-  fenceRun(S, 14.8, D.PZ0 + 0.45, D.PX1 - 0.45, D.PZ0 + 0.45, 1.1).position.y += 0.55;
+  if (!B) {
+    boxA(14.6, D.PX1 - 0.2, 0, 0.55, D.PZ0 + 0.2, D.PZ0 + 0.7, MAT.stoneWarm, S);
+    boxA(D.PX1 - 0.7, D.PX1 - 0.2, 0, 0.55, D.PZ0 + 0.2, 10.0, MAT.stoneWarm, S);
+    fenceRun(S, D.PX1 - 0.45, D.PZ0 + 0.45, D.PX1 - 0.45, 10.0, 1.1).position.y += 0.55;
+    fenceRun(S, 14.8, D.PZ0 + 0.45, D.PX1 - 0.45, D.PZ0 + 0.45, 1.1).position.y += 0.55;
+  }
   // cellar doors flung open beside the ride's descent
-  for (const [z, ry] of [[7.0, -1.0], [9.4, 1.0]]) {
+  if (!B) for (const [z, ry] of [[7.0, -1.0], [9.4, 1.0]]) {
     const dg = new THREE.Group(); dg.position.set(18.6, 0.02, z); dg.rotation.x = ry > 0 ? -0.35 : 0.35; S.add(dg);
     boxA(-2.6, 2.6, 0, 0.1, 0, ry > 0 ? 1.15 : -1.15, MAT.woodDark, dg);
     for (const x of [-1.8, 0, 1.8]) boxA(x - 0.08, x + 0.08, 0.1, 0.14, 0, ry > 0 ? 1.15 : -1.15, MAT.iron, dg);
   }
-  boxA(15.4, 21.9, -0.02, 0.12, 6.85, 7.0, MAT.stoneDark, S);
-  boxA(15.4, 21.9, -0.02, 0.12, 9.4, 9.55, MAT.stoneDark, S);
-  // the spiral tree the ride descends around
-  P.deadTree(S, 22.0, 0, -1.8, { h: 25, r: 0.75, seed: 11, m: MAT.bark, spread: 0.8, crown: true });
+  if (!B) {
+    boxA(15.4, 21.9, -0.02, 0.12, 6.85, 7.0, MAT.stoneDark, S);
+    boxA(15.4, 21.9, -0.02, 0.12, 9.4, 9.55, MAT.stoneDark, S);
+    // the spiral tree the ride descends around
+    P.deadTree(S, 22.0, 0, -1.8, { h: 25, r: 0.75, seed: 11, m: MAT.bark, spread: 0.8, crown: true });
+  }
   // tombstones
   const lines = [
     ['DOCTOR GRAVE', 'prescribed rest', 'and rest he gave'],
@@ -191,24 +224,19 @@ function graveyard(S, G) {
     ['OLD BARTLEBY', 'wound the clock', 'to thirteen', 'and stopped'],
   ];
   const faces = lines.map(([t, ...l]) => TX.epitaph(l, { title: t }));
-  const graves = [
-    [15.8, 4.2, 0.2, 0, 0], [17.2, 5.4, -0.15, 3, 1], [16.0, 2.0, 0.1, 1, -1], [18.6, 3.1, 0.25, 2, -1],
-    [15.6, -5.6, 0.3, 0, 2], [17.8, -6.4, -0.2, 3, 3], [19.6, -6.0, 0.1, 1, -1],
-    [25.0, -6.2, 0.0, 3, 4], [27.2, -6.6, -0.2, 0, 5], [29.6, -6.0, 0.25, 2, -1], [30.6, -3.6, -0.5, 1, -1],
-    [20.4, 6.8, 0.4, 0, -1], [30.4, 1.4, -0.4, 3, -1], [26.4, -3.6, 0.15, 1, -1],
-  ];
   const graveSpots = [];
-  for (const [x, z, ry, kind, fi] of graves) {
-    P.tombstone(S, x, 0, z, ry, { kind, s: rand(0.9, 1.15), m: pick([MAT.tomb, MAT.tombDark]), face: fi >= 0 ? faces[fi] : null });
+  for (const g of GRAVES) {
+    const [x, z, ry, , fi] = g;
+    if (!B || fi >= 0) grave(S, g, fi >= 0 ? faces[fi] : null);
     graveSpots.push(new THREE.Vector3(x + Math.sin(ry) * 0.9, 0, z + Math.cos(ry) * 0.9));
   }
   // singing busts
   const busts = [];
-  const hats = ['top', 'bowler', null, 'curls', 'laurel'];
+  const hats = ['top', 'bowler', 'bun', 'curls', 'laurel'];
   const roles = ['the tenor', 'the baritone', 'the alto', 'the basso', 'the soprano'];
   for (let i = 0; i < 5; i++) {
     const x = 24.3 + i * 1.35, z = 1.0 + Math.sin(i * 1.7) * 0.25;
-    P.pedestal(S, x, 0, z, 1.05, MAT.tomb);
+    if (!B) P.pedestal(S, x, 0, z, 1.05, MAT.tomb);
     const b = P.bust(G, x, 1.05, z, { s: 0.95, ry: -0.18 + i * 0.05, faceMap: T.bust[i][0], hat: hats[i], m: new THREE.MeshStandardMaterial({ color: 0xb4bccc, roughness: 0.5, emissive: 0x3a4a68, emissiveIntensity: 0.18 }) });
     busts.push({ ...b, i, sing: 0, phase: rand(0, TAU), on: true });
   }
@@ -229,14 +257,7 @@ function graveyard(S, G) {
   const singAll = () => { busts.forEach((b) => { b.on = true; }); W.audio?.setMusicBoost?.('all', 12); say('Five marble heads, one glorious chord.', {}); };
   // crypt with the hitchhikers
   const cg = new THREE.Group(); cg.position.set(25.6, 0, 5.0); S.add(cg);
-  boxA(-1.9, 1.9, 0, 0.35, -1.3, 1.3, MAT.stoneWarm, cg);
-  boxA(-1.6, 1.6, 0.35, 2.7, -1.1, 0.7, MAT.stone, cg);
-  boxA(-0.6, 0.6, 0.35, 2.0, 0.69, 0.75, MAT.void, cg);
-  for (const sx of [-1.25, 1.25]) cyl(0.17, 0.2, 2.4, MAT.tomb, sx, 1.55, 0.95, cg, 10);
-  boxA(-1.8, 1.8, 2.7, 3.0, -1.25, 1.25, MAT.stoneWarm, cg);
-  const ped = new THREE.Shape(); ped.moveTo(-1.85, 0); ped.lineTo(1.85, 0); ped.lineTo(0, 0.9); ped.closePath();
-  const pg = new THREE.ExtrudeGeometry(ped, { depth: 2.5, bevelEnabled: false }); pg.translate(0, 3.0, -1.25);
-  cg.add(new THREE.Mesh(pg, MAT.stoneWarm));
+  if (!B) cryptStone(cg);
   const plaque = mesh(new THREE.PlaneGeometry(2.0, 0.4), new THREE.MeshStandardMaterial({ map: TX.labelTex('HITCHHIKERS’ REST', { w: 512, h: 96, fg: '#2a2234', size: 44 }), roughness: 0.9, transparent: true }), 0, 2.36, 0.76, cg);
   const cryptGlow = new THREE.PointLight(0x5dffa0, 10, 8, 1.5); cryptGlow.position.set(25.6, 1.6, 7.2);
   addLight(cryptGlow, { room: 'graveyard', flicker: 0.25, speed: 4 });
@@ -258,32 +279,42 @@ function graveyard(S, G) {
   });
   const hitchFn = () => { hst.wave = 1.5; sfx('hitch'); W.ui?.hitchhiker?.(); say('One of them is coming home with you.', {}); };
   hikers.forEach((g) => hotspot(g, 'graveyard', 'Pick up a hitchhiker', hitchFn));
-  // the caretaker and his trembling dog
+  // the caretaker and his trembling dog: sculpted in blender/figures.py, one object per moving part (?figures=0
+  // shows the simpler ones built here)
+  const F = W.figures, fig = P.figure;
   const ct = new THREE.Group(); ct.position.set(20.6, 0, 5.2); ct.rotation.y = 0.9; G.add(ct);
   const coat = flat('#4a3a2e'), skin = flat('#d8b896');
   const legs = new THREE.Group(); legs.userData.keepGroup = true; ct.add(legs);
-  for (const sx of [-0.12, 0.12]) { cyl(0.07, 0.06, 0.7, flat('#2a2420'), sx, 0.35, 0, legs, 6); boxA(sx - 0.08, sx + 0.08, 0, 0.08, -0.05, 0.16, MAT.black, legs); }
+  if (F) fig('caretaker-legs', legs);
+  else for (const sx of [-0.12, 0.12]) { cyl(0.07, 0.06, 0.7, flat('#2a2420'), sx, 0.35, 0, legs, 6); boxA(sx - 0.08, sx + 0.08, 0, 0.08, -0.05, 0.16, MAT.black, legs); }
   const torso = new THREE.Group(); torso.position.y = 0.7; torso.userData.keepGroup = true; ct.add(torso);
-  const tb = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.32, 0.8, 8), coat); tb.position.y = 0.38; torso.add(tb);
   torso.rotation.x = 0.35;
-  const hd = sphere(0.17, skin, 0, 0.95, 0.08, torso, 8, 6);
-  sphere(0.06, flat('#c8987a'), 0, 0.93, 0.25, torso, 5, 4);
-  const hatB = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.03, 10), flat('#2a2018')); hatB.position.y = 1.08; torso.add(hatB);
-  const hatC = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.18, 10), flat('#2a2018')); hatC.position.y = 1.18; torso.add(hatC);
-  const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.05, 5, 10), flat('#7a1a22')); scarf.rotation.x = Math.PI / 2; scarf.position.y = 0.8; torso.add(scarf);
-  for (const sx of [-1, 1]) { const arm = cyl(0.05, 0.05, 0.55, coat, sx * 0.26, 0.45, 0.12, torso, 5); arm.rotation.x = -0.9; arm.rotation.z = sx * 0.15; }
+  if (F) fig('caretaker-torso', torso);
+  else {
+    const tb = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.32, 0.8, 8), coat); tb.position.y = 0.38; torso.add(tb);
+    sphere(0.17, skin, 0, 0.95, 0.08, torso, 8, 6);
+    sphere(0.06, flat('#c8987a'), 0, 0.93, 0.25, torso, 5, 4);
+    const hatB = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.28, 0.03, 10), flat('#2a2018')); hatB.position.y = 1.08; torso.add(hatB);
+    const hatC = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.17, 0.18, 10), flat('#2a2018')); hatC.position.y = 1.18; torso.add(hatC);
+    const scarf = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.05, 5, 10), flat('#7a1a22')); scarf.rotation.x = Math.PI / 2; scarf.position.y = 0.8; torso.add(scarf);
+    for (const sx of [-1, 1]) { const arm = cyl(0.05, 0.05, 0.55, coat, sx * 0.26, 0.45, 0.12, torso, 5); arm.rotation.x = -0.9; arm.rotation.z = sx * 0.15; }
+  }
   const lan = P.lantern(torso, 0.24, 0.2, 0.42, { s: 0.75 });
-  const ctLight = new THREE.PointLight(0xffb060, 8, 7, 1.6); ctLight.position.set(0.24, 1.2, 0.5); ct.add(ctLight);
+  // the sculpted coat reaches further forward than the old cone, so its light sits further out to keep off the chest
+  const ctLight = new THREE.PointLight(0xffb060, 8, 7, 1.6); ctLight.position.set(0.24, F ? 1.15 : 1.2, F ? 0.75 : 0.5); ct.add(ctLight);
   addLight(ctLight, { room: 'graveyard', flicker: 0.18, parent: ct });
   const dog = new THREE.Group(); dog.position.set(21.1, 0, 4.4); dog.rotation.y = 1.2; dog.userData.keepGroup = true; G.add(dog);
   const fur = flat('#4e463e');
-  const db = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.62, 6), fur); db.rotation.x = Math.PI / 2; db.position.set(0, 0.45, 0); dog.add(db);
-  for (const [lx, lz] of [[-0.07, 0.22], [0.07, 0.22], [-0.07, -0.22], [0.07, -0.22]]) cyl(0.02, 0.02, 0.42, fur, lx, 0.21, lz, dog, 4);
   const dh = new THREE.Group(); dh.position.set(0, 0.6, 0.32); dh.userData.keepGroup = true; dog.add(dh);
-  const snout = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 5), fur); snout.rotation.x = Math.PI / 2; snout.position.z = 0.12; dh.add(snout);
-  sphere(0.08, fur, 0, 0.02, 0, dh, 6, 5);
-  for (const sx of [-0.05, 0.05]) { const e = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.1, 3), fur); e.position.set(sx, 0.1, -0.03); e.rotation.x = -0.6; dh.add(e); }
-  const tail = cyl(0.012, 0.01, 0.3, fur, 0, 0.36, -0.36, dog, 3); tail.rotation.x = 0.9;
+  if (F) { fig('dog-body', dog); fig('dog-head', dh); }
+  else {
+    const db = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.09, 0.62, 6), fur); db.rotation.x = Math.PI / 2; db.position.set(0, 0.45, 0); dog.add(db);
+    for (const [lx, lz] of [[-0.07, 0.22], [0.07, 0.22], [-0.07, -0.22], [0.07, -0.22]]) cyl(0.02, 0.02, 0.42, fur, lx, 0.21, lz, dog, 4);
+    const snout = new THREE.Mesh(new THREE.ConeGeometry(0.07, 0.3, 5), fur); snout.rotation.x = Math.PI / 2; snout.position.z = 0.12; dh.add(snout);
+    sphere(0.08, fur, 0, 0.02, 0, dh, 6, 5);
+    for (const sx of [-0.05, 0.05]) { const e = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.1, 3), fur); e.position.set(sx, 0.1, -0.03); e.rotation.x = -0.6; dh.add(e); }
+    const tail = cyl(0.012, 0.01, 0.3, fur, 0, 0.36, -0.36, dog, 3); tail.rotation.x = 0.9;
+  }
   const cst = { fright: 0 };
   onUpdate((t, dt) => {
     cst.fright = Math.max(0, cst.fright - dt * 0.4);
@@ -318,8 +349,10 @@ function graveyard(S, G) {
   // tea party at the back
   const tp = new THREE.Group(); tp.position.set(28.4, 0, -4.3); tp.userData.keepGroup = true; G.add(tp);
   const tpS = new THREE.Group(); tp.add(tpS);
-  P.roundTable(tpS, 0, 0, 0, 0.6, { h: 0.8, cloth: mat('#a99fb8', 0.9), hem: 0.6 });
-  for (const sx of [-1, 1]) { P.chair(tpS, sx * 0.95, 0, 0, sx * -Math.PI / 2, { seat: MAT.velvet, s: 0.85 }); }
+  if (!B) {
+    P.roundTable(tpS, 0, 0, 0, 0.6, { h: 0.8, cloth: mat('#a99fb8', 0.9), hem: 0.6 });
+    for (const sx of [-1, 1]) { P.chair(tpS, sx * 0.95, 0, 0, sx * -Math.PI / 2, { seat: MAT.velvet, s: 0.85 }); }
+  }
   const teaGuests = [makeGhost({ height: 1.6, width: 0.4, hat: 'bun', arms: 'front', color: 0xd8c8ff }), makeGhost({ height: 1.7, width: 0.4, hat: 'top', arms: 'front', color: 0xa8fff0 })];
   teaGuests[0].position.set(-0.95, 0.35, 0); teaGuests[0].rotation.y = Math.PI / 2; teaGuests[1].position.set(0.95, 0.35, 0); teaGuests[1].rotation.y = -Math.PI / 2;
   teaGuests.forEach((g) => { g.scale.y = 0.85; tp.add(g); });
@@ -329,7 +362,7 @@ function graveyard(S, G) {
   onUpdate((t) => { pot.position.set(Math.sin(t * 0.7) * 0.4, 1.35 + Math.sin(t * 1.3) * 0.1, Math.cos(t * 0.7) * 0.15); pot.rotation.z = -0.4 + Math.sin(t * 1.5) * 0.35; teaGuests.forEach((g, i) => { g.position.y = 0.35 + Math.sin(t * 1.4 + i * 2) * 0.04; }); });
   // royal teeter-totter
   const tt = new THREE.Group(); tt.position.set(17.4, 0, -4.4); tt.rotation.y = 0.2; tt.userData.keepGroup = true; G.add(tt);
-  const fulc = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.6, 3), MAT.stoneWarm); fulc.position.y = 0.3; fulc.rotation.x = Math.PI / 2; fulc.rotation.z = Math.PI; tt.add(fulc);
+  if (!B) { const fulc = new THREE.Mesh(new THREE.ConeGeometry(0.3, 0.6, 3), MAT.stoneWarm); fulc.position.y = 0.3; fulc.rotation.x = Math.PI / 2; fulc.rotation.z = Math.PI; tt.add(fulc); }
   const plank = new THREE.Group(); plank.position.y = 0.62; plank.userData.keepGroup = true; tt.add(plank);
   boxA(-1.7, 1.7, -0.04, 0.04, -0.18, 0.18, MAT.woodWarm, plank);
   const king = makeGhost({ height: 1.6, width: 0.42, hat: 'crown', arms: 'up', color: 0xfff0b8 });
@@ -346,7 +379,7 @@ function graveyard(S, G) {
   hotspot(diva, 'graveyard', 'Request an aria', ariaFn);
   // pumpkins & lanterns
   for (const [x, z, s] of [[19.2, 7.6, 1.1], [23.2, 3.0, 0.9], [29.6, 7.4, 1.2], [16.4, -2.2, 0.9], [22.8, -6.6, 1.0]]) P.jackOLantern(S, x, 0, z, rand(-0.6, 0.6), s);
-  for (const [x, z] of [[15.6, 0.6], [24.0, -7.2]]) { cyl(0.06, 0.08, 1.8, MAT.iron, x, 0.9, z, S, 6); P.lantern(S, x, 1.8, z, { s: 1.0, m: MAT.flameGreen }); }
+  for (const [x, z] of [[15.6, 0.6], [24.0, -7.2]]) { if (!B) cyl(0.06, 0.08, 1.8, MAT.iron, x, 0.9, z, S, 6); P.lantern(S, x, 1.8, z, { s: 1.0, m: MAT.flameGreen }); }
   const gy = defineRoom('graveyard', {
     name: 'The Graveyard',
     blurb: 'Where the happy haunts come out to socialize. The busts are singing, the caretaker’s knees are knocking, and three hitchhikers are looking for a ride.',
@@ -356,7 +389,19 @@ function graveyard(S, G) {
   gy.actions.push({ label: 'Let the busts sing', fn: singAll }, { label: 'Pick up a hitchhiker', fn: hitchFn }, { label: 'Say boo to the caretaker', fn: booFn }, { label: 'Request an aria', fn: ariaFn });
 }
 
+function cryptStone(cg) {
+  boxA(-1.9, 1.9, 0, 0.35, -1.3, 1.3, MAT.stoneWarm, cg);
+  boxA(-1.6, 1.6, 0.35, 2.7, -1.1, 0.7, MAT.stone, cg);
+  boxA(-0.6, 0.6, 0.35, 2.0, 0.69, 0.75, MAT.void, cg);
+  for (const sx of [-1.25, 1.25]) cyl(0.17, 0.2, 2.4, MAT.tomb, sx, 1.55, 0.95, cg, 10);
+  boxA(-1.8, 1.8, 2.7, 3.0, -1.25, 1.25, MAT.stoneWarm, cg);
+  const ped = new THREE.Shape(); ped.moveTo(-1.85, 0); ped.lineTo(1.85, 0); ped.lineTo(0, 0.9); ped.closePath();
+  const pg = new THREE.ExtrudeGeometry(ped, { depth: 2.5, bevelEnabled: false }); pg.translate(0, 3.0, -1.25);
+  cg.add(new THREE.Mesh(pg, MAT.stoneWarm));
+}
+
 function backYard(S, G) {
+  if (W.bakedGrounds) return;
   // a weeping angel behind the conservatory
   const ag = new THREE.Group(); ag.position.set(9.4, 0, -6.6); ag.rotation.y = Math.PI * 0.1; S.add(ag);
   boxA(-0.45, 0.45, 0, 0.6, -0.45, 0.45, MAT.stoneWarm, ag);

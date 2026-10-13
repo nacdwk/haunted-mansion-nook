@@ -11,6 +11,7 @@ import { buildRide } from './ride.js';
 import { buildFx, buildSoil } from './fx.js';
 import { createAudio } from './audio.js';
 import { buildUI } from './ui.js';
+import { loadOfficialArt, applyOfficialArt } from './art.js';
 
 const canvas = document.getElementById('stage');
 const status = (s) => { const el = document.getElementById('loader-status'); if (el) el.textContent = s; };
@@ -18,6 +19,25 @@ const frame = () => new Promise((r) => { let done = false; const go = () => { if
 
 async function boot() {
   W.state.reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const query = new URLSearchParams(location.search);
+  W.classicFigures = query.get('figures') === '0';   // the older, simpler ghosts and caretaker, for comparison
+  const timeout = (ms) => new Promise((_, no) => setTimeout(() => no(new Error('timed out')), ms));
+  // the Blender-built sets download while everything else is set up. ?baked=0 shows the procedural house, and
+  // ?exterior=0 or ?grounds=0 the procedural version of just that set; it is also the fallback for any set that fails
+  const set = (m, name) => Promise.race([m.loadBakedSet(name), timeout(25000)])
+    .catch((e) => { console.warn(`Baked ${name} unavailable, building the procedural one instead:`, e); return null; });
+  const bakedSets = query.get('baked') === '0' ? null
+    : import('./baked.js').then(async (m) => {
+      const [hall, exterior, grounds, figures] = await Promise.all([set(m, 'grandhall'), query.get('exterior') === '0' ? null : set(m, 'exterior'),
+        query.get('grounds') === '0' ? null : set(m, 'grounds'),
+        W.classicFigures ? null : Promise.race([m.loadFigures(), timeout(25000)]).catch((e) => { console.warn('Figures unavailable:', e); return null; })]);
+      m.releaseLoaders();
+      return { m, hall, exterior, grounds, figures };
+    }).catch((e) => { console.warn('Baked sets unavailable:', e); return null; });
+  // the official portraits and wallpaper (js/art.js); ?art=0 shows the house's own painted versions
+  const officialArt = query.get('art') === '0' ? null
+    : Promise.race([loadOfficialArt(), timeout(15000)])
+      .catch((e) => { console.warn('Official art unavailable, using the painted versions:', e); return null; });
   let renderer;
   try {
     renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance', stencil: false });
@@ -48,6 +68,8 @@ async function boot() {
   ]).catch(() => {});
   await frame();
   buildMaterials();
+  const art = officialArt && await officialArt;
+  if (art) applyOfficialArt(art);
   scene.background = T.bg;
 
   // lighting
@@ -83,6 +105,11 @@ async function boot() {
 
   status('Raising the walls…');
   await frame();
+  const baked = bakedSets && await bakedSets;
+  W.bakedHall = baked?.hall || null;
+  W.bakedExterior = baked?.exterior || null;
+  W.bakedGrounds = baked?.grounds || null;
+  W.figures = baked?.figures || null;
   const world = new THREE.Group(); world.name = 'world';
   scene.add(world);
   W.world = world;
@@ -95,10 +122,13 @@ async function boot() {
   status('Waking the residents…');
   await frame();
   buildRooms(world);
+  if (W.bakedHall) baked.m.addBakedHall(world);
   status('Digging the graveyard…');
   await frame();
   buildOutside(world);
   buildSoil(world);
+  if (W.bakedExterior) baked.m.addBakedExterior(world);
+  if (W.bakedGrounds) baked.m.addBakedGrounds(world);
   status('Oiling the Doom Buggies…');
   await frame();
   const post = setupPost(renderer, scene, camera);
@@ -137,6 +167,7 @@ async function boot() {
     if (renderer.compileAsync) await renderer.compileAsync(scene, camera); else renderer.compile(scene, camera);
   } catch (e) { /* ignore */ }
   renderer.setRenderTarget(null);
+  performance.mark('nook-ready');
   W.ui.showIntro();
   document.getElementById('loader')?.classList.add('done');
   window.__W = W;
