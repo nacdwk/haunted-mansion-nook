@@ -1,0 +1,47 @@
+{
+ "triangles": 5576,
+ "groups": [
+  "main",
+  "back",
+  "right"
+ ],
+ "lit": [],
+ "materials": [
+  "bone",
+  "bottle_blue",
+  "bottle_green",
+  "bottle_orange",
+  "bottle_violet",
+  "brass",
+  "curtain",
+  "gilt",
+  "glass",
+  "marble_dark",
+  "parquet",
+  "plaster",
+  "rug",
+  "wainscot",
+  "wallpaper",
+  "walnut",
+  "wax",
+  "zodiac"
+ ],
+ "samples": 256,
+ "warm": {
+  "scale": 0.5010786056518555,
+  "size": 1536,
+  "seconds": 11.5,
+  "mean": 0.02218485437333584,
+  "p50": 0.003257360076531768,
+  "clipped": 0.001232571072048611
+ },
+ "cool": {
+  "scale": 1.7881734371185303,
+  "size": 1024,
+  "seconds": 8.8,
+  "mean": 0.14230497181415558,
+  "p50": 0.09000000357627869,
+  "clipped": 0.0019407272338867188
+ },
+ "seconds": 23.4
+}

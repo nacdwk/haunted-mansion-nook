@@ -88,10 +88,10 @@ Apart from the baked sets (the Grand Hall, the outside of the mansion and the gr
 | `js/audio.js` | The synthesizer, the score and sound effects |
 | `js/post.js` | Bloom, tilt-shift miniature blur and colour grade |
 | `js/ui.js` | Picking, hover labels, room panels, the dock, captions and the ride overlay |
-| `js/baked.js` | Loads the Blender-built Grand Hall, Endless Hall, Conservatory, exterior and grounds and draws them with their baked light, and loads the sculpted figures |
+| `js/baked.js` | Loads the Blender-built Grand Hall, Endless Hall, Conservatory, Séance Circle, exterior and grounds and draws them with their baked light, and loads the sculpted figures |
 | `js/art.js` | Swaps in the official Stretching Room portraits and wallpaper and the Endless Hall wallpaper from `assets/art/`, when those files are present |
 | `tools/prepare_art.py` | Crops the portraits, cuts a seamless tile of the Endless Hall wallpaper and redraws the Stretching Room's stripes from the source images into `assets/art/` |
-| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`), the Endless Hall (`endless_hall.py`), the Conservatory (`conservatory.py`), the exterior and tower (`exterior.py`) and the grounds (`grounds.py`) and the solid figures (`figures.py`), their shared helpers (`kit.py`, and `trees.py` for the dead trees), the house's lights shared between the last two (`exterior_lights.json`), and `bake.sh` to rebuild `assets/` |
+| `blender/` | The Blender scripts that model and light-bake the Grand Hall (`grand_hall.py`), the Endless Hall (`endless_hall.py`), the Conservatory (`conservatory.py`), the Séance Circle (`seance.py`), the exterior and tower (`exterior.py`) and the grounds (`grounds.py`) and the solid figures (`figures.py`), their shared helpers (`kit.py`, and `trees.py` for the dead trees), the house's lights shared between the last two (`exterior_lights.json`), and `bake.sh` to rebuild `assets/` |
 
 A few techniques keep it running at 60 fps:
 
@@ -104,13 +104,13 @@ A few techniques keep it running at 60 fps:
 
 ## Baked sets (experiment)
 
-Five parts of the nook are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall, the Endless Hall, the Conservatory, the outside of the mansion with its stretching tower, and the grounds around it. The solid figures are sculpted there too: the caretaker and his dog, the marble busts, the raven, the coffin's bony hands and Madame Leota (see below), and so is the ghost dog's shape. Everything else, including the other ghosts and the other things that move, is still procedural.
+Six parts of the nook are modelled in Blender and lit with Cycles instead of being built from primitives at load time: the Grand Hall, the Endless Hall, the Conservatory, the Séance Circle, the outside of the mansion with its stretching tower, and the grounds around it. The solid figures are sculpted there too: the caretaker and his dog, the marble busts, the raven, the coffin's bony hands and Madame Leota (see below), and so is the ghost dog's shape. Everything else, including the other ghosts and the other things that move, is still procedural.
 
 - A Python script in `blender/` builds each set (`grand_hall.py`, `exterior.py` and `grounds.py`, with shared helpers in `kit.py` and `trees.py`) and removes faces nobody can see. It then bakes two lightmaps, warm (flames, lamps and lit windows) and cool (moonlight, sky and fill light), and exports Draco-compressed geometry. Thin ironwork is exported without a lightmap and lit live by the site, though it still shades the baked surfaces around it.
 - `js/baked.js` draws the sets with one cheap shader. It reads the lightmaps, maps the site's painted textures onto the surfaces and adds the lantern.
 - Because the two lightmaps are separate, the sets still dim for the lantern, flicker with the flames and flash with lightning. Their walls melt away with the facades, and the tower still stretches.
-- Rebuild a set with `blender/bake.sh grandhall`, `blender/bake.sh endless`, `blender/bake.sh conserv`, `blender/bake.sh exterior` or `blender/bake.sh grounds` (after the exterior, whose house and lights it uses), and the figures with `blender/bake.sh figures`. Each takes under a minute on an M4 GPU and writes the web-ready files to `assets/`.
-- To compare, add `?baked=0` to the URL for the all-procedural nook, or `?endless=0`, `?conserv=0`, `?exterior=0` or `?grounds=0` for the procedural version of just that set, or `?figures=0` for the old figures and ghosts. If a baked set fails to load, the site builds the procedural version in its place.
+- Rebuild a set with `blender/bake.sh grandhall`, `blender/bake.sh endless`, `blender/bake.sh conserv`, `blender/bake.sh seance`, `blender/bake.sh exterior` or `blender/bake.sh grounds` (after the exterior, whose house and lights it uses), and the figures with `blender/bake.sh figures`. Each takes under a minute on an M4 GPU and writes the web-ready files to `assets/`.
+- To compare, add `?baked=0` to the URL for the all-procedural nook, or `?endless=0`, `?conserv=0`, `?seance=0`, `?exterior=0` or `?grounds=0` for the procedural version of just that set, or `?figures=0` for the old figures and ghosts. If a baked set fails to load, the site builds the procedural version in its place.
 
 ### The Grand Hall
 
@@ -170,6 +170,24 @@ The ground floor's right-hand room, where the coffin lies in state, is the next 
 | GPU time per frame at Retina size, the room view | 11.4 ms | 8.4 ms |
 | GPU time per frame at Retina size, riding through it | 50.9 ms | 39.4 ms |
 | Draw calls (with shadow pass) / triangles, the room view | 493 / 449k | 499 / 452k |
+
+### The Séance Circle
+
+![The Séance Circle from the ride, from outside, its draped wall and its back wall: procedural and baked](docs/seance-baked.jpg)
+
+Madame Leota's room upstairs, the ride's next stop after the Conservatory, is a set too (`blender/seance.py`). Nearly everything in it moves, so the set is the room round them.
+- **The partition.** Velvet drapes in folds frame the portrait, under a swagged valance with a gilt fringe. The cabinet of curiosities stands beneath it now, with skulls and jars on its shelves and bottles glowing on top. It used to stand where the Doom Buggies leave for the Grand Hall, and they drove through it.
+- **The windows.** Both have casings, drapes and pelmets on gilt rods, and two sconces hold green-flamed candles on the back wall.
+- **The walls, floor and ceiling.** The walls have wainscot, the room's damask and a cornice. The floor is parquet in a dark border under the rug, and the zodiac ceiling, in a gilt frame, still glows a little.
+- **The light.** The crystal ball's green light moves with it, so it isn't baked. The baked surfaces get it live, as the procedural room did, while the candles and the moonlight are baked.
+- **Still procedural.** The table, the ball and Leota, the chairs, the instruments, the raven and the portrait stay the site's.
+
+| | Procedural room | Baked room |
+|---|---|---|
+| Download for the whole page (cache off) | 4,151 KB | 4,286 KB (+134 KB) |
+| GPU time per frame at Retina size, the room view | 9.0 ms | 7.4 ms |
+| GPU time per frame at Retina size, riding through it | 60.5 ms | 49.0 ms |
+| Draw calls (with shadow pass) / triangles, the room view | 520 / 453k | 524 / 457k |
 
 ### The exterior
 

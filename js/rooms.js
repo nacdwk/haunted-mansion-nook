@@ -420,19 +420,26 @@ function seance(root) {
     tableG.position.y = y0 + sst.lev * 0.35 + (sst.lev > 0 ? Math.sin(t * 3) * 0.05 : 0);
     sst.lev = damp(sst.lev, sst.frenzy > 0.3 ? 1 : 0, 2, dt);
   });
-  // left partition: drapes + a cabinet of curiosities
-  boxA(4.9, 5.08, y0, 13.4, -1.2, -0.4, MAT.curtainPurple, S);
-  boxA(4.9, 5.08, y0, 13.4, 3.0, 3.8, MAT.curtainPurple, S);
-  boxA(4.9, 5.12, 12.6, 13.5, -1.4, 4.0, MAT.curtainPurple, S);
+  // left partition: drapes + a cabinet of curiosities. The baked room (blender/seance.py) brings its own drapes, cabinet
+  // and bottles (the cabinet moved out of the ride's way, under the portrait), the zodiac ceiling, rug and sconces; the
+  // bottles still roll the house's dice, into a group that's thrown away, so everything after them comes out the same.
+  const BK = !!W.bakedSeance, SB = BK ? new THREE.Group() : S;
+  if (!BK) {
+    boxA(4.9, 5.08, y0, 13.4, -1.2, -0.4, MAT.curtainPurple, S);
+    boxA(4.9, 5.08, y0, 13.4, 3.0, 3.8, MAT.curtainPurple, S);
+    boxA(4.9, 5.12, 12.6, 13.5, -1.4, 4.0, MAT.curtainPurple, S);
+  }
   const pt = P.framed(S, T.portraits[3], 1.3, 1.65, { ei: 0.25 }); pt.position.set(4.92, 10.7, 1.3); pt.rotation.y = Math.PI / 2;
-  boxA(4.9, 5.6, y0, y0 + 2.2, -3.6, -1.9, MAT.walnut, S);
-  for (let i = 0; i < 7; i++) { const b = cyl(0.07, 0.09, rand(0.2, 0.35), new THREE.MeshStandardMaterial({ color: 0x000000, emissive: new THREE.Color(pick(['#6dffb0', '#c070ff', '#ff6a3a', '#5ad8ff'])), emissiveIntensity: 1.6, transparent: true, opacity: 0.85 }), 5.3, y0 + 2.35, -3.4 + i * 0.22, S, 8); b.material.userData.noShadow = true; }
+  if (!BK) boxA(4.9, 5.6, y0, y0 + 2.2, -3.6, -1.9, MAT.walnut, S);
+  for (let i = 0; i < 7; i++) { const b = cyl(0.07, 0.09, rand(0.2, 0.35), new THREE.MeshStandardMaterial({ color: 0x000000, emissive: new THREE.Color(pick(['#6dffb0', '#c070ff', '#ff6a3a', '#5ad8ff'])), emissiveIntensity: 1.6, transparent: true, opacity: 0.85 }), 5.3, y0 + 2.35, -3.4 + i * 0.22, SB, 8); b.material.userData.noShadow = true; }
   // celestial ceiling
-  const zc = mesh(new THREE.PlaneGeometry(8.7, 9.2), new THREE.MeshStandardMaterial({ map: T.zodiac, roughness: 0.8, emissiveMap: T.zodiac, emissive: 0xffffff, emissiveIntensity: 0.3 }), 9.24, 13.58, 0, S);
-  zc.rotation.x = Math.PI / 2;
-  P.rugPlane(S, cx, y0, cz, 3.8, 3.8, T.rugPurple);
-  P.sconce(S, 7.0, 11.0, -4.58, 0, { m: MAT.flameGreen });
-  P.sconce(S, 11.6, 11.0, -4.58, 0, { m: MAT.flameGreen });
+  if (!BK) {
+    const zc = mesh(new THREE.PlaneGeometry(8.7, 9.2), new THREE.MeshStandardMaterial({ map: T.zodiac, roughness: 0.8, emissiveMap: T.zodiac, emissive: 0xffffff, emissiveIntensity: 0.3 }), 9.24, 13.58, 0, S);
+    zc.rotation.x = Math.PI / 2;
+    P.rugPlane(S, cx, y0, cz, 3.8, 3.8, T.rugPurple);
+    P.sconce(S, 7.0, 11.0, -4.58, 0, { m: MAT.flameGreen });
+    P.sconce(S, 11.6, 11.0, -4.58, 0, { m: MAT.flameGreen });
+  }
   toBin(S);
   const conjure = act(room, 'Ask the medium to call the spirits', async () => {
     sst.speak = 9; sst.frenzy = 1.2;
@@ -445,7 +452,7 @@ function seance(root) {
   const band = act(room, 'Strike up the band', () => { sst.frenzy = 1; sfx('tambourine'); });
   for (const it of inst) hotspot(it.g, 'seance', 'Strike up the band', band);
   hotspot(rv.g, 'seance', 'Startle the raven', () => { rv.caw(); sfx('caw'); });
-  W.seance = { sst };
+  W.seance = { sst, light: bl };   // js/baked.js lights the baked room with the ball's light too
 }
 
 // ======================================================================= BALLROOM

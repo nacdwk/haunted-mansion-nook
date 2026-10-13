@@ -1,5 +1,6 @@
 // Sets modelled in Blender and lit with Cycles: the Grand Hall (blender/grand_hall.py), the Endless Hall
-// (blender/endless_hall.py), the Conservatory (blender/conservatory.py), the mansion's exterior (blender/exterior.py) and
+// (blender/endless_hall.py), the Conservatory (blender/conservatory.py), the Séance Circle (blender/seance.py), the
+// mansion's exterior (blender/exterior.py) and
 // the grounds round it (blender/grounds.py).
 // Each set's light is baked into two lightmaps, warm and cool. Keeping them
 // apart lets the set still dim for the lantern, brighten on hover, flicker and flash with lightning. Surfaces
@@ -23,6 +24,7 @@ const KW = num('kw', '0.34'), KC = num('kc', '0.5');
 const EXT_KW = num('ekw', '0.3'), EXT_KC = num('ekc', '0.65');   // matched to the procedural facades' brightness and colour
 const END_KW = num('nkw', '0.34'), END_KC = num('nkc', '0.5');
 const CON_KW = num('ckw', '1.0'), CON_KC = num('ckc', '1.2');      // its green glow and moonlight bake dimmer than candles
+const SEA_KW = num('skw', '0.7'), SEA_KC = num('skc', '1.4');      // the crystal ball lights it live
 
 let gltf = null;
 function loader() {
@@ -51,7 +53,7 @@ export async function loadBakedSet(name) {
   const set = { name, scene: model.scene, warm, cool, meta, pipes: [], flames: [], fire: null };
   model.scene.traverse((o) => {
     if (o.name.startsWith('PipeTop_')) set.pipes.push(o.position.clone());
-    else if (o.name.startsWith('Flame_')) set.flames.push({ p: o.position.clone(), s: o.userData.flameScale ?? 0.7 });
+    else if (o.name.startsWith('Flame_')) set.flames.push({ p: o.position.clone(), s: o.userData.flameScale ?? 0.7, green: !!o.userData.flameGreen });
     else if (o.name === 'Fire') set.fire = o.position.clone();
   });
   return set;
@@ -114,6 +116,17 @@ const CONSERV_LOOK = {
   wax: { color: '#efe6cf' }, terracotta: { color: '#8a4a32' }, soil: { color: '#2a1a12' }, dead_leaf: { color: '#5a4a2e' }, stem: { color: '#3a2e26' },
   flower: { color: '#4a1a2a' }, ribbon: { color: '#3a1f45' }, wicker: { color: '#5a4630' },
 };
+// the Séance Circle: its damask and drapes, a zodiac ceiling that glows a little, as the room's own does, and bottles
+// that glow on the cabinet of curiosities
+const bottle = (c) => ({ color: '#000000', emit: c, emitK: 1.6 });
+const SEANCE_LOOK = {
+  wallpaper: { mat: 'papSeance' }, wainscot: { map: 'wainscot', uv: 2.4, gloss: 0.15 }, walnut: { color: '#2a170d', gloss: 0.2 },
+  gilt: { color: '#c9a24a', metal: 1 }, brass: { color: '#a8844e', metal: 1 }, plaster: { map: 'plaster', uv: 3 },
+  zodiac: { map: 'zodiac', rug: [4.87, 4.6, 8.73, 9.2], glowMap: 'zodiac', glowK: 0.3 }, parquet: { map: 'parquet', uv: 4, gloss: 0.4, color: '#8a7868' },
+  marble_dark: { color: '#2e2834', gloss: 0.4, vein: 1 }, rug: { map: 'rugPurple', rug: [7.5, 2.8, 3.8, 3.8] }, curtain: { map: 'curtainPurple', uv: 1.6 },
+  wax: { color: '#efe6cf' }, glass: { color: '#141822', metal: 0.5 }, bone: { color: '#e9e3cf' }, void: { color: '#050308' },
+  bottle_green: bottle('#6dffb0'), bottle_violet: bottle('#c070ff'), bottle_orange: bottle('#ff6a3a'), bottle_blue: bottle('#5ad8ff'),
+};
 // the Grand Hall's brightest flames, which polished surfaces pick up as glints: position and strength
 const HALL_GLINTS = [[-5.0, 12.5, 1.6, 7], [-10.3, 7.9, -4.1, 5], [-6.4, 9.1, -0.45, 2.2], [-2.8, 9.1, -0.45, 2.2],
   [4.17, 10.6, 0.0, 1.4], [4.17, 10.6, 3.0, 1.4], [-12.4, 11.2, -4.28, 1.4], [-4.6, 9.3, -0.55, 1.2]];
@@ -133,7 +146,8 @@ const FRAG = /* glsl */`
   uniform vec3 uColor, uWarmK, uCoolK, uLampPos, uLampDir, uLampCol, uEdge, uHot, uHotCol, uEnvLow, uEnvHigh, uGlowCol;
   uniform vec2 uLampCone, uUv;
   uniform vec4 uRug, uFire, uGlints[${MAX_GLINTS}], uTaper, uPoint;
-  uniform vec3 uPointCol;
+  uniform vec3 uPointCol, uEmit;
+  uniform float uPointDecay;
   uniform float uMode, uMetal, uGloss, uVein, uGlintK, uDissolve, uDebug, uTaperLen, uGlowK;
   varying vec2 vLm; varying vec3 vW; varying vec3 vN;
   ${NOISE_GLSL}
@@ -155,11 +169,13 @@ const FRAG = /* glsl */`
       P = vec3(vW.x / s, uTaper.w + (vW.y - uTaper.w) / s, uTaper.x - c);
     }
     vec2 tuv = vec2(0.0);
-    if (uMode > 1.5) albedo *= texture2D(uMap, vec2(vW.x - uRug.x, uRug.y - vW.z) / uRug.zw).rgb;
-    else if (uMode > 0.5) {           // box-mapped by the facet's dominant axis, like worldUV() in core.js
+    if (uMode > 1.5) {                // laid on once across a rectangle (rugs, the zodiac ceiling)
+      tuv = vec2(vW.x - uRug.x, uRug.y - vW.z) / uRug.zw;
+      albedo *= texture2D(uMap, tuv).rgb;
+    } else if (uMode > 0.5) {         // box-mapped by the facet's dominant axis, like worldUV() in core.js
       vec3 fn = abs(cross(dFdx(vW), dFdy(vW)));
-      tuv = fn.x >= fn.y && fn.x >= fn.z ? P.zy : (fn.y >= fn.z ? P.xz : P.xy);
-      albedo *= texture2D(uMap, tuv / uUv).rgb;
+      tuv = (fn.x >= fn.y && fn.x >= fn.z ? P.zy : (fn.y >= fn.z ? P.xz : P.xy)) / uUv;
+      albedo *= texture2D(uMap, tuv).rgb;
     }
     if (uVein > 0.0) {                // marble veins
       float v = abs(snoise(vW * vec3(1.3, 0.8, 1.3) + snoise(vW * 0.6) * 1.4));
@@ -179,7 +195,7 @@ const FRAG = /* glsl */`
     col += albedo * uLampCol * (max(dot(N, L), 0.0) * att * spot * 0.3183099);
     if (uPoint.w > 0.0) {             // a live light the bake can't know about (the coffin's glow when its lid lifts)
       vec3 Lp = uPoint.xyz - vW; float dp = length(Lp); Lp /= dp;
-      float fall = pow(clamp(1.0 - pow(dp / uPoint.w, 4.0), 0.0, 1.0), 2.0) / max(dp * dp, 0.01);
+      float fall = pow(clamp(1.0 - pow(dp / uPoint.w, 4.0), 0.0, 1.0), 2.0) / max(pow(dp, uPointDecay), 0.01);
       col += albedo * uPointCol * (max(dot(N, Lp), 0.0) * fall * 0.3183099);
     }
     if (uMetal > 0.0) {               // metals reflect a simple environment with the brightest light as a hot spot
@@ -202,7 +218,8 @@ const FRAG = /* glsl */`
       }
       col += vec3(1.0, 0.7, 0.4) * (g * uGloss * fres * uGlintK);
     }
-    if (uGlowK > 0.0) col += texture2D(uGlowMap, tuv / uUv).rgb * uGlowCol * uGlowK;   // the wallpaper's eyes
+    if (uGlowK > 0.0) col += texture2D(uGlowMap, tuv).rgb * uGlowCol * uGlowK;   // the wallpaper's eyes, the zodiac
+    col += uEmit;                     // things that glow by themselves (bottles)
     col += uEdge * dEdge;
     gl_FragColor = vec4(col, 1.0);
     #include <tonemapping_fragment>
@@ -225,7 +242,7 @@ function sharedUniforms(set, { hot, hotCol, envLow, envHigh, glints = [] }) {
     uHot: { value: v3(hot) }, uHotCol: { value: v3(hotCol) }, uEnvLow: { value: v3(envLow) }, uEnvHigh: { value: v3(envHigh) },
     uGlints: { value: Array.from({ length: MAX_GLINTS }, (_, i) => new THREE.Vector4(...(glints[i] || [0, -100, 0, 0]))) },
     uGlintK: { value: 1 },
-    uPoint: { value: new THREE.Vector4(0, -100, 0, 0) }, uPointCol: { value: new THREE.Vector3() },
+    uPoint: { value: new THREE.Vector4(0, -100, 0, 0) }, uPointCol: { value: new THREE.Vector3() }, uPointDecay: { value: 2 },
     uDebug: { value: Q.has('lightmap') ? 1 : 0 },
   };
   let lamp = null;
@@ -259,7 +276,7 @@ function attach(set, shared, looks, place) {
     const look = looks[name] || { color: '#808080' };
     const src = look.mat ? MAT[look.mat] : null;      // a site material lends its texture and scale (the official wallpaper)
     const uv = src?.userData.uvScale ?? look.uv ?? 1;
-    const glowK = { value: 0 };
+    const glowK = { value: look.glowK || 0 };          // a fixed glow (glowMap), or the site material's, as it breathes
     if (look.glow && src?.emissiveMap) onUpdate(() => { glowK.value = src.emissiveIntensity; });
     const m = new THREE.ShaderMaterial({
       vertexShader: VERT, fragmentShader: FRAG,
@@ -270,7 +287,9 @@ function attach(set, shared, looks, place) {
         uRug: { value: new THREE.Vector4(...(look.rug || [0, 0, 1, 1])) }, uMetal: { value: look.metal || 0 },
         uGloss: { value: look.gloss || 0 }, uVein: { value: look.vein || 0 },
         uTaper: { value: new THREE.Vector4(...(look.taper || [0, 0, 1, 0]).slice(0, 4)) }, uTaperLen: { value: look.taper ? look.taper[4] : 0 },
-        uGlowMap: { value: (look.glow && src?.emissiveMap) || WHITE }, uGlowCol: { value: look.glow && src ? src.emissive.clone() : new THREE.Color(0) }, uGlowK: glowK,
+        uGlowMap: { value: (look.glow && src?.emissiveMap) || (look.glowMap && T[look.glowMap]) || WHITE },
+        uGlowCol: { value: look.glow && src ? src.emissive.clone() : new THREE.Color(look.glowMap ? 0xffffff : 0) }, uGlowK: glowK,
+        uEmit: { value: new THREE.Color(look.emit || 0).multiplyScalar(look.emitK || 1) },
       },
     });
     m.name = `${set.name}:${name}`;
@@ -380,6 +399,36 @@ export function addBakedConservatory(root) {
     }
   });
   W.bakedConservGroup = G;
+  return G;
+}
+
+// ---------------------------------------------------------------- the Séance Circle
+// Its back and side walls' dressing melts with those facades; the rest stays put. The crystal ball's light moves with
+// it, so it is added live, the way the site lights the room's moving furniture with it; the sconces' green candles
+// and the moonlight are baked.
+export function addBakedSeance(root) {
+  const H = W.bakedSeance;
+  const shared = sharedUniforms(H, { hot: [9.4, 9.65, 0.9], hotCol: [0.6, 2.4, 1.6], envLow: [0.03, 0.03, 0.06], envHigh: [0.25, 0.3, 0.45] });
+  const G = new THREE.Group(); G.name = 'bakedSeance'; G.userData.noCompact = true;
+  root.add(G);
+  attach(H, shared, SEANCE_LOOK, (name) => ({ Sea_back: { dissolver: 'back' }, Sea_right: { dissolver: 'right' } }[name] || (name.startsWith('Sea_') ? { parent: G } : null)));
+  for (const f of H.flames) P.flame(G, f.p.x, f.p.y, f.p.z, f.s, f.green ? MAT.flameGreen : undefined);
+  const ball = W.seance?.light, at = new THREE.Vector3();
+  onUpdate((t) => {
+    const room = W.rooms.seance;
+    const mul = (room ? room.lightMul : 1) * W.lightMul;
+    const flick = 0.93 + 0.07 * (0.65 * noise1(t * 5 + 2.9) + 0.35 * (0.5 + 0.5 * Math.sin(t * 9.2 + 1.1)));
+    const storm = W.fx?.stormK || 0, flash = W.U.uFlash.value;
+    shared.uWarmK.value.setScalar(H.meta.warm.scale * SEA_KW * flick * mul);
+    shared.uCoolK.value.setScalar(H.meta.cool.scale * SEA_KC * mul * (1 - storm * 0.25) * (1 + flash * 2.5));
+    if (ball) {
+      ball.getWorldPosition(at);
+      shared.uPoint.value.set(at.x, at.y, at.z, ball.intensity > 0.01 ? ball.distance : 0);
+      shared.uPointCol.value.set(ball.color.r, ball.color.g, ball.color.b).multiplyScalar(ball.intensity);
+      shared.uPointDecay.value = ball.decay;
+    }
+  });
+  W.bakedSeanceGroup = G;
   return G;
 }
 
