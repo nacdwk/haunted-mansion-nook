@@ -2,7 +2,7 @@
 // levitating roof, the stretching tower, and the bookshelf it all sits on.
 import {
   THREE, W, box, boxA, cyl, mesh, group, bake, makeDissolver, quadPrism, sphere, TAU, DEG, onUpdate,
-  smooth, lerp, clamp, addLight, hotspot, proxy, tween, easeInOut, makeGhost, rand, mat, glow, compact, toBin,
+  smooth, lerp, clamp, addLight, hotspot, proxy, tween, easeInOut, makeGhost, rand, mat, glow, compact, toBin, interim, pending,
 } from './core.js';
 import { MAT, T, paintingMat, TX } from './materials.js';
 
@@ -35,25 +35,33 @@ export function subtractRects(u0, u1, v0, v1, holes) {
   }
   return rects;
 }
-// Wall in local coords: u along +x, v = y, outer face at z=0, thickness toward -z.
+// Wall in local coords: u along +x, v = y, outer face at z=0, thickness toward -z. A region a room's baked set dresses
+// (late: the set) is dressed here until the set arrives, then left as just the wall core (js/core.js interim()).
 export function buildWall({ openings = [], outer = [], inner = [], t = 0.4, split = 0.16, trims = true }) {
   const g = new THREE.Group();
-  for (const reg of outer) for (const r of subtractRects(reg.u0, reg.u1, reg.v0, reg.v1, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -split, 0, reg.mat, g);
+  const core = (reg, z0, z1) => {
+    if (!W.late.has(reg.late)) return;
+    const P = pending(reg.late, g);
+    for (const r of subtractRects(reg.u0, reg.u1, reg.v0, reg.v1, openings)) boxA(r.u0, r.u1, r.v0, r.v1, z0, z1, MAT.walnut, P);
+  };
+  for (const reg of outer) {
+    const d = reg.late ? interim(reg.late, g) : g;
+    for (const r of subtractRects(reg.u0, reg.u1, reg.v0, reg.v1, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -split, 0, reg.mat, d);
+    if (reg.late) core(reg, -split, 0);
+  }
   for (const reg of inner) {
-    if (reg.bare) { // just the wall core: something else (the baked Grand Hall) dresses this face
-      for (const r of subtractRects(reg.u0, reg.u1, reg.v0, reg.v1, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -t, -split, MAT.walnut, g);
-      continue;
-    }
+    if (reg.late) core(reg, -t, -split);
+    const d = reg.late ? interim(reg.late, g) : g;
     const wh = reg.wainscot || 0;
     const vSplit = reg.v0 + wh;
     if (wh > 0) {
-      for (const r of subtractRects(reg.u0, reg.u1, reg.v0, vSplit, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -t, -split, reg.wmat || MAT.wainscot, g);
-      for (const r of subtractRects(reg.u0, reg.u1, vSplit, vSplit + 0.12, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -t - 0.06, -t, MAT.walnut, g);
+      for (const r of subtractRects(reg.u0, reg.u1, reg.v0, vSplit, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -t, -split, reg.wmat || MAT.wainscot, d);
+      for (const r of subtractRects(reg.u0, reg.u1, vSplit, vSplit + 0.12, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -t - 0.06, -t, MAT.walnut, d);
     }
-    for (const r of subtractRects(reg.u0, reg.u1, vSplit, reg.v1, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -t, -split, reg.mat, g);
+    for (const r of subtractRects(reg.u0, reg.u1, vSplit, reg.v1, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -t, -split, reg.mat, d);
     if (trims) {
-      for (const r of subtractRects(reg.u0, reg.u1, reg.v0, reg.v0 + 0.32, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -t - 0.05, -t, MAT.walnut, g);
-      for (const r of subtractRects(reg.u0, reg.u1, reg.v1 - 0.26, reg.v1, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -t - 0.12, -t, reg.crown || MAT.walnut, g);
+      for (const r of subtractRects(reg.u0, reg.u1, reg.v0, reg.v0 + 0.32, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -t - 0.05, -t, MAT.walnut, d);
+      for (const r of subtractRects(reg.u0, reg.u1, reg.v1 - 0.26, reg.v1, openings)) boxA(r.u0, r.u1, r.v0, r.v1, -t - 0.12, -t, reg.crown || MAT.walnut, d);
     }
   }
   return g;
@@ -61,7 +69,7 @@ export function buildWall({ openings = [], outer = [], inner = [], t = 0.4, spli
 export function place(obj, x, y, z, ry = 0) { obj.position.set(x, y, z); obj.rotation.y = ry; return obj; }
 
 // exterior window dressing + interior glass/curtains for one opening
-function dressWindow(g, o, { curtain = MAT.curtainRed, glowMat = MAT.windowGlow, shutters = true, inside = true, trimInside = true, outside = true, t = 0.4 } = {}) {
+function dressWindow(g, o, { curtain = MAT.curtainRed, glowMat = MAT.windowGlow, shutters = true, inside = true, trimInside = true, insideTo = g, outside = true, t = 0.4 } = {}) {
   const w = o.u1 - o.u0, h = o.v1 - o.v0, cu = (o.u0 + o.u1) / 2, cv = (o.v0 + o.v1) / 2;
   if (outside) { // the baked exterior brings its own casings, heads, sills and shutters
     boxA(o.u0 - 0.16, o.u0, o.v0 - 0.08, o.v1 + 0.05, 0, 0.07, MAT.trim, g);
@@ -85,15 +93,15 @@ function dressWindow(g, o, { curtain = MAT.curtainRed, glowMat = MAT.windowGlow,
     const ng = mesh(new THREE.PlaneGeometry(w, h), MAT.nightGlass, cu, cv, -0.3, g);
     ng.rotation.y = Math.PI;
     if (!trimInside) return glowPlane;
-    boxA(o.u0 - 0.14, o.u0, o.v0 - 0.08, o.v1 + 0.08, -t - 0.08, -t, MAT.walnut, g);
-    boxA(o.u1, o.u1 + 0.14, o.v0 - 0.08, o.v1 + 0.08, -t - 0.08, -t, MAT.walnut, g);
-    boxA(o.u0 - 0.14, o.u1 + 0.14, o.v1, o.v1 + 0.14, -t - 0.08, -t, MAT.walnut, g);
-    boxA(o.u0 - 0.2, o.u1 + 0.2, o.v0 - 0.14, o.v0, -t - 0.2, -t, MAT.walnut, g);
+    boxA(o.u0 - 0.14, o.u0, o.v0 - 0.08, o.v1 + 0.08, -t - 0.08, -t, MAT.walnut, insideTo);
+    boxA(o.u1, o.u1 + 0.14, o.v0 - 0.08, o.v1 + 0.08, -t - 0.08, -t, MAT.walnut, insideTo);
+    boxA(o.u0 - 0.14, o.u1 + 0.14, o.v1, o.v1 + 0.14, -t - 0.08, -t, MAT.walnut, insideTo);
+    boxA(o.u0 - 0.2, o.u1 + 0.2, o.v0 - 0.14, o.v0, -t - 0.2, -t, MAT.walnut, insideTo);
     if (curtain) {
-      boxA(o.u0 - 0.55, o.u0 + 0.15, o.v0 - 0.4, o.v1 + 0.5, -t - 0.22, -t - 0.12, curtain, g);
-      boxA(o.u1 - 0.15, o.u1 + 0.55, o.v0 - 0.4, o.v1 + 0.5, -t - 0.22, -t - 0.12, curtain, g);
-      boxA(o.u0 - 0.7, o.u1 + 0.7, o.v1 + 0.5, o.v1 + 0.95, -t - 0.26, -t - 0.08, curtain, g);
-      const rod = cyl(0.04, 0.04, w + 1.6, MAT.gold, cu, o.v1 + 0.55, -t - 0.3, g, 8);
+      boxA(o.u0 - 0.55, o.u0 + 0.15, o.v0 - 0.4, o.v1 + 0.5, -t - 0.22, -t - 0.12, curtain, insideTo);
+      boxA(o.u1 - 0.15, o.u1 + 0.55, o.v0 - 0.4, o.v1 + 0.5, -t - 0.22, -t - 0.12, curtain, insideTo);
+      boxA(o.u0 - 0.7, o.u1 + 0.7, o.v1 + 0.5, o.v1 + 0.95, -t - 0.26, -t - 0.08, curtain, insideTo);
+      const rod = cyl(0.04, 0.04, w + 1.6, MAT.gold, cu, o.v1 + 0.55, -t - 0.3, insideTo, 8);
       rod.rotation.z = Math.PI / 2;
     }
   }
@@ -104,7 +112,7 @@ function dressWindow(g, o, { curtain = MAT.curtainRed, glowMat = MAT.windowGlow,
 export function buildBase(root) {
   const S = new THREE.Group();
   const { BX0, BX1, BZ0, BZ1, BY0, BY1, PX0, PX1, PZ0, PZ1, PY0 } = D;
-  const hall = !W.bakedBasement; // the baked basement brings the hall itself: its floor, walls, ceiling and front beam
+  const H = interim('basement', S); // the baked basement brings the hall itself: its floor, walls, ceiling and front beam
   // grass top (with the cellar hole the ride descends through)
   const hole = { x0: 15.4, x1: 21.9, z0: 7.0, z1: 9.4 };
   const topRects = subtractRects(PX0, PX1, PZ0, PZ1, [{ u0: hole.x0, u1: hole.x1, v0: hole.z0, v1: hole.z1 }]);
@@ -116,29 +124,25 @@ export function buildBase(root) {
   boxA(PX0, PX1, PY0, BY1, PZ0, BZ0, MAT.soil, S);          // behind the corridor
   boxA(PX0, BX0, PY0, BY1, BZ0, PZ1, MAT.soil, S);          // left end
   boxA(BX1, PX1, PY0, BY1, BZ0, PZ1, MAT.soil, S);          // right end (under the graveyard)
-  if (hall) boxA(BX0, BX1, PY0, BY0, BZ0, PZ1, MAT.flags, S);         // corridor floor
+  boxA(BX0, BX1, PY0, BY0, BZ0, PZ1, MAT.flags, H);         // corridor floor
   // corridor back wall (stone) with the tunnel arch & mirror niche
   const tunnel = { u0: -20.6, u1: -18.0, v0: BY0, v1: -2.4 };
   const mirrorN = { u0: 8.0, u1: 12.0, v0: -5.15, v1: -1.45 };
-  if (hall) {
-    for (const r of subtractRects(BX0, BX1, BY0, BY1, [tunnel, mirrorN])) boxA(r.u0, r.u1, r.v0, r.v1, BZ0 - 0.01, BZ0 + 0.22, MAT.stoneDark, S);
-    // wainscot + damask on the corridor's back wall (between tunnel and the ramp)
-    for (const r of subtractRects(-17.6, 13.0, -5.2, -1.2, [mirrorN])) boxA(r.u0, r.u1, r.v0, r.v1, BZ0 + 0.22, BZ0 + 0.3, MAT.papBase, S);
-    for (const r of subtractRects(-17.6, 13.0, BY0, -4.1, [mirrorN])) boxA(r.u0, r.u1, r.v0, r.v1, BZ0 + 0.22, BZ0 + 0.36, MAT.wainscotDark, S);
-    boxA(-17.6, 13.0, -4.12, -3.98, BZ0 + 0.22, BZ0 + 0.42, MAT.walnut, S);
-  }
+  for (const r of subtractRects(BX0, BX1, BY0, BY1, [tunnel, mirrorN])) boxA(r.u0, r.u1, r.v0, r.v1, BZ0 - 0.01, BZ0 + 0.22, MAT.stoneDark, H);
+  // wainscot + damask on the corridor's back wall (between tunnel and the ramp)
+  for (const r of subtractRects(-17.6, 13.0, -5.2, -1.2, [mirrorN])) boxA(r.u0, r.u1, r.v0, r.v1, BZ0 + 0.22, BZ0 + 0.3, MAT.papBase, H);
+  for (const r of subtractRects(-17.6, 13.0, BY0, -4.1, [mirrorN])) boxA(r.u0, r.u1, r.v0, r.v1, BZ0 + 0.22, BZ0 + 0.36, MAT.wainscotDark, H);
+  boxA(-17.6, 13.0, -4.12, -3.98, BZ0 + 0.22, BZ0 + 0.42, MAT.walnut, H);
   // tunnel throat (dark)
   boxA(tunnel.u0, tunnel.u1, BY0, tunnel.v1, BZ0 - 2.5, BZ0 - 0.4, MAT.void, S);
-  if (hall) for (let i = 0; i < 7; i++) { // arch voussoirs
+  for (let i = 0; i < 7; i++) { // arch voussoirs
     const a = Math.PI * (i / 6);
     const bx = (tunnel.u0 + tunnel.u1) / 2 + Math.cos(a) * 1.55, by = tunnel.v1 - 0.6 + Math.sin(a) * 1.0;
-    const b = box(0.55, 0.4, 0.5, MAT.stone, bx, by, BZ0 + 0.3, S); b.rotation.z = a - Math.PI / 2;
+    const b = box(0.55, 0.4, 0.5, MAT.stone, bx, by, BZ0 + 0.3, H); b.rotation.z = a - Math.PI / 2;
   }
   // ceiling beams & joists
-  if (hall) {
-    for (let x = BX0 + 1.2; x < BX1; x += 2.6) boxA(x - 0.18, x + 0.18, BY1 - 0.38, BY1, BZ0, PZ1, MAT.walnut, S);
-    boxA(BX0, BX1, BY1 - 0.06, BY1, BZ0, PZ1, MAT.woodDark, S);
-  }
+  for (let x = BX0 + 1.2; x < BX1; x += 2.6) boxA(x - 0.18, x + 0.18, BY1 - 0.38, BY1, BZ0, PZ1, MAT.walnut, H);
+  boxA(BX0, BX1, BY1 - 0.06, BY1, BZ0, PZ1, MAT.woodDark, H);
   // the book-nook frame: walnut lips, posts, base tray with brass corners
   boxA(PX0 - 0.35, PX1 + 0.35, -0.28, 0.18, PZ1, PZ1 + 0.35, MAT.walnut, S);
   boxA(PX0 - 0.35, PX1 + 0.35, -0.28, 0.18, PZ0 - 0.35, PZ0, MAT.walnut, S);
@@ -153,10 +157,8 @@ export function buildBase(root) {
     boxA(x - 0.38, x + 0.38, PY0 - 1.0, PY0 - 0.6, z - 0.38, z + 0.38, MAT.brass, S);
   }
   // corridor proscenium: top beam with corbels + lace filigree
-  if (hall) {
-    boxA(BX0, BX1, BY1 - 0.55, BY1 + 0.25, PZ1 - 0.25, PZ1 + 0.18, MAT.walnut, S);
-    for (let x = BX0 + 1.2; x < BX1; x += 2.6) boxA(x - 0.2, x + 0.2, BY1 - 1.1, BY1 - 0.5, PZ1 - 0.6, PZ1 + 0.1, MAT.walnut, S);
-  }
+  boxA(BX0, BX1, BY1 - 0.55, BY1 + 0.25, PZ1 - 0.25, PZ1 + 0.18, MAT.walnut, H);
+  for (let x = BX0 + 1.2; x < BX1; x += 2.6) boxA(x - 0.2, x + 0.2, BY1 - 1.1, BY1 - 0.5, PZ1 - 0.6, PZ1 + 0.1, MAT.walnut, H);
   const fil = mesh(new THREE.PlaneGeometry(BX1 - BX0, 0.55), MAT.filigree, (BX0 + BX1) / 2, BY1 - 0.78, PZ1 + 0.02, S);
   { const uv = fil.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * (BX1 - BX0) / 2.2); }
   // engraved brass nameplate on the front of the tray
@@ -164,17 +166,15 @@ export function buildBase(root) {
   const plate = mesh(new THREE.PlaneGeometry(10.5, 0.62), new THREE.MeshStandardMaterial({ map: plateTex, roughness: 0.35, metalness: 0.6, emissiveMap: plateTex, emissive: 0xffffff, emissiveIntensity: 0.18 }), 4, PY0 - 0.45, PZ1 + 0.712, S);
   boxA(-1.35, 9.35, PY0 - 0.8, PY0 - 0.1, PZ1 + 0.69, PZ1 + 0.705, MAT.brass, S);
   for (const sx of [-1.15, 9.15]) sphere(0.06, MAT.gold, sx, PY0 - 0.45, PZ1 + 0.72, S, 6, 4);
-  if (hall) {
-    boxA(BX0 - 0.25, BX0 + 0.25, PY0, 0, PZ1 - 0.4, PZ1 + 0.2, MAT.walnut, S);
-    boxA(BX1 - 0.25, BX1 + 0.25, PY0, 0, PZ1 - 0.4, PZ1 + 0.2, MAT.walnut, S);
-    // corridor right end wall & left end
-    boxA(BX1 - 0.3, BX1, BY0, BY1, BZ0, PZ1, MAT.stoneDark, S);
-    boxA(BX0, BX0 + 0.3, BY0, BY1, BZ0, PZ1, MAT.stoneDark, S);
-    // carpet runner along the corridor
-    boxA(BX0 + 0.4, 13.2, BY0, BY0 + 0.04, 6.9, 9.5, MAT.velvetRed, S);
-    boxA(BX0 + 0.4, 13.2, BY0, BY0 + 0.05, 6.85, 6.95, MAT.gold, S);
-    boxA(BX0 + 0.4, 13.2, BY0, BY0 + 0.05, 9.45, 9.55, MAT.gold, S);
-  }
+  boxA(BX0 - 0.25, BX0 + 0.25, PY0, 0, PZ1 - 0.4, PZ1 + 0.2, MAT.walnut, H);
+  boxA(BX1 - 0.25, BX1 + 0.25, PY0, 0, PZ1 - 0.4, PZ1 + 0.2, MAT.walnut, H);
+  // corridor right end wall & left end
+  boxA(BX1 - 0.3, BX1, BY0, BY1, BZ0, PZ1, MAT.stoneDark, H);
+  boxA(BX0, BX0 + 0.3, BY0, BY1, BZ0, PZ1, MAT.stoneDark, H);
+  // carpet runner along the corridor
+  boxA(BX0 + 0.4, 13.2, BY0, BY0 + 0.04, 6.9, 9.5, MAT.velvetRed, H);
+  boxA(BX0 + 0.4, 13.2, BY0, BY0 + 0.05, 6.85, 6.95, MAT.gold, H);
+  boxA(BX0 + 0.4, 13.2, BY0, BY0 + 0.05, 9.45, 9.55, MAT.gold, H);
   toBin(S);
   return { hole };
 }
@@ -249,13 +249,12 @@ export function buildShelf(root) {
 export function buildShell(root) {
   const { F1, F2, AT } = D;
   const facades = {};
-  const bare = !!W.bakedHall; // the baked Grand Hall brings its own wall dressing
-  const endless = !!W.bakedEndless; // and the baked Endless Hall its own, its floor, the arch and the corridor beyond
-  const conserv = !!W.bakedConserv; // and the baked Conservatory its own, its floor and its side window's drapes
-  const seance = !!W.bakedSeance; // and the baked Séance Circle its own, its floor and its windows' drapes
-  const attic = !!W.bakedAttic; // and the baked Attic its floorboards
-  const library = !!W.bakedLibrary; // and the baked Library its own, its floor and the railing round the ride's hole
-  const ext = !!W.bakedExterior; // and the baked exterior its own siding, trim, portico and doors (js/baked.js)
+  // The rooms' baked sets, which arrive after the house is up, bring their own wall dressing: the Grand Hall's
+  // ('grandhall'); the Endless Hall's, with its floor, the arch and the corridor beyond ('endless'); the
+  // Conservatory's, with its floor and its side window's drapes ('conserv'); the Séance Circle's, with its floor and
+  // its windows' drapes ('seance'); the Library's, with its floor and the railing round the ride's hole ('library');
+  // and the Attic its floorboards ('attic'). Until each arrives, the procedural dressing stands in (js/core.js interim()).
+  const ext = !!W.bakedExterior; // the baked exterior brings its own siding, trim, portico and doors (js/baked.js)
   const siding = (L) => (ext ? [] : [{ u0: 0, u1: L, v0: F1, v1: AT, mat: MAT.siding }]);
   const ROOM = { lib: [0, 9.33], foy: [9.33, 18.67], con: [18.67, 28] };
 
@@ -343,16 +342,16 @@ export function buildShell(root) {
       openings: op,
       outer: siding(28),
       inner: [
-        { u0: 0, u1: 9.33, v0: F1, v1: 7.0, mat: MAT.papConserv, wainscot: 1.6, bare: conserv },
-        { u0: 9.33, u1: 18.67, v0: F1, v1: 7.0, mat: MAT.papEyes, wainscot: 2.0, wmat: MAT.wainscotDark, bare: endless },
-        { u0: 18.67, u1: 28, v0: F1, v1: 7.0, mat: MAT.papLibrary, wainscot: 2.0, bare: library },
-        { u0: 0, u1: 9.33, v0: F2, v1: 13.6, mat: MAT.papSeance, wainscot: 1.8, bare: seance },
-        { u0: 9.33, u1: 28, v0: F2, v1: 13.6, mat: MAT.papBall, wainscot: 2.2, crown: MAT.gold, bare },
+        { u0: 0, u1: 9.33, v0: F1, v1: 7.0, mat: MAT.papConserv, wainscot: 1.6, late: 'conserv' },
+        { u0: 9.33, u1: 18.67, v0: F1, v1: 7.0, mat: MAT.papEyes, wainscot: 2.0, wmat: MAT.wainscotDark, late: 'endless' },
+        { u0: 18.67, u1: 28, v0: F1, v1: 7.0, mat: MAT.papLibrary, wainscot: 2.0, late: 'library' },
+        { u0: 0, u1: 9.33, v0: F2, v1: 13.6, mat: MAT.papSeance, wainscot: 1.8, late: 'seance' },
+        { u0: 9.33, u1: 28, v0: F2, v1: 13.6, mat: MAT.papBall, wainscot: 2.2, crown: MAT.gold, late: 'grandhall' },
       ],
     });
     G.add(w);
     if (!ext) exteriorTrim(G, 28);
-    dressWindow(G, op[2], { curtain: MAT.curtainPurple, glowMat: MAT.windowCold, outside: !ext, trimInside: !seance });
+    dressWindow(G, op[2], { curtain: MAT.curtainPurple, glowMat: MAT.windowCold, outside: !ext, insideTo: interim('seance', G) });
     // conservatory glass wall: iron grid + panes
     const o = op[0];
     for (let u = o.u0; u <= o.u1 + 0.01; u += (o.u1 - o.u0) / 8) boxA(u - 0.05, u + 0.05, o.v0, o.v1, -0.3, -0.1, MAT.iron, G);
@@ -361,9 +360,9 @@ export function buildShell(root) {
     gp.renderOrder = 2;
     // arch trim around the hallway opening (inside face)
     const a = op[1];
-    if (!endless) for (let i = 0; i <= 8; i++) {
+    for (let i = 0; i <= 8; i++) {
       const ang = Math.PI * i / 8;
-      const b = box(0.4, 0.25, 0.2, MAT.gold, (a.u0 + a.u1) / 2 + Math.cos(ang) * 1.5, a.v1 - 0.9 + Math.sin(ang) * 0.95, -0.5, G);
+      const b = box(0.4, 0.25, 0.2, MAT.gold, (a.u0 + a.u1) / 2 + Math.cos(ang) * 1.5, a.v1 - 0.9 + Math.sin(ang) * 0.95, -0.5, interim('endless', G));
       b.rotation.z = ang + Math.PI / 2;
     }
     place(G, 14, 0, -5, Math.PI);
@@ -378,13 +377,13 @@ export function buildShell(root) {
       openings: op,
       outer: siding(10),
       inner: [
-        { u0: 0, u1: 10, v0: F1, v1: 7.0, mat: MAT.papLibrary, wainscot: 2.0, bare: library },
-        { u0: 0, u1: 10, v0: F2, v1: 13.6, mat: MAT.papBall, wainscot: 2.2, crown: MAT.gold, bare },
+        { u0: 0, u1: 10, v0: F1, v1: 7.0, mat: MAT.papLibrary, wainscot: 2.0, late: 'library' },
+        { u0: 0, u1: 10, v0: F2, v1: 13.6, mat: MAT.papBall, wainscot: 2.2, crown: MAT.gold, late: 'grandhall' },
       ],
     });
     G.add(w);
     if (!ext) exteriorTrim(G, 10);
-    dressWindow(G, op[0], { curtain: MAT.curtainRose, glowMat: MAT.windowGlow, trimInside: !bare, outside: !ext });
+    dressWindow(G, op[0], { curtain: MAT.curtainRose, glowMat: MAT.windowGlow, insideTo: interim('grandhall', G), outside: !ext });
     place(G, -14, 0, -5, -Math.PI / 2);
     root.add(G);
     facades.left = G;
@@ -402,14 +401,14 @@ export function buildShell(root) {
       openings: op,
       outer: siding(10),
       inner: [
-        { u0: 0, u1: 10, v0: F1, v1: 7.0, mat: MAT.papConserv, wainscot: 1.6, bare: conserv },
-        { u0: 0, u1: 10, v0: F2, v1: 13.6, mat: MAT.papSeance, wainscot: 1.8, bare: seance },
+        { u0: 0, u1: 10, v0: F1, v1: 7.0, mat: MAT.papConserv, wainscot: 1.6, late: 'conserv' },
+        { u0: 0, u1: 10, v0: F2, v1: 13.6, mat: MAT.papSeance, wainscot: 1.8, late: 'seance' },
       ],
     });
     G.add(w);
     if (!ext) exteriorTrim(G, 10);
-    dressWindow(G, op[1], { curtain: MAT.curtainGreen, outside: !ext, trimInside: !conserv });
-    dressWindow(G, op[3], { curtain: MAT.curtainPurple, glowMat: MAT.windowFig, outside: !ext, trimInside: !seance });
+    dressWindow(G, op[1], { curtain: MAT.curtainGreen, outside: !ext, insideTo: interim('conserv', G) });
+    dressWindow(G, op[3], { curtain: MAT.curtainPurple, glowMat: MAT.windowFig, outside: !ext, insideTo: interim('seance', G) });
     if (!ext) for (const o of [op[0], op[2]]) { // archways for the ride
       boxA(o.u0 - 0.2, o.u0, o.v0, o.v1 + 0.2, 0, 0.14, MAT.trim, G);
       boxA(o.u1, o.u1 + 0.2, o.v0, o.v1 + 0.2, 0, 0.14, MAT.trim, G);
@@ -431,24 +430,23 @@ export function buildShell(root) {
   boxA(-14.15, 14.15, 0, 0.42, -5.15, 5.15, MAT.brick, S);
   // F1 floors
   const libHole = { u0: -13.6, u1: -10.9, v0: 2.0, v1: 4.6 };
-  if (!library) for (const r of subtractRects(-13.6, -4.67, -4.6, 4.6, [libHole])) boxA(r.u0, r.u1, 0.42, F1, r.v0, r.v1, MAT.wood, S);
+  const lib = interim('library', S);
+  for (const r of subtractRects(-13.6, -4.67, -4.6, 4.6, [libHole])) boxA(r.u0, r.u1, 0.42, F1, r.v0, r.v1, MAT.wood, lib);
   boxA(libHole.u0, libHole.u1, 0.05, 0.1, libHole.v0, libHole.v1, MAT.void, S);
-  if (!library) {
-    for (const [x, z] of [[-10.9, 2.0], [-10.9, 4.6], [-13.4, 2.0]]) { cyl(0.07, 0.07, 1.0, MAT.gold, x, F1 + 0.5, z, S, 8); sphere(0.11, MAT.gold, x, F1 + 1.02, z, S, 8, 6); }
-    boxA(-13.4, -10.9, F1 + 0.95, F1 + 1.02, 1.97, 2.03, MAT.gold, S);
-    boxA(-10.93, -10.87, F1 + 0.95, F1 + 1.02, 2.0, 4.6, MAT.gold, S);
-  }
-  if (!endless) boxA(-4.67, 4.67, 0.42, F1, -4.6, 4.6, MAT.checker, S);
-  if (!conserv) boxA(4.67, 13.6, 0.42, F1, -4.6, 4.6, MAT.checkerGreen, S);
+  for (const [x, z] of [[-10.9, 2.0], [-10.9, 4.6], [-13.4, 2.0]]) { cyl(0.07, 0.07, 1.0, MAT.gold, x, F1 + 0.5, z, lib, 8); sphere(0.11, MAT.gold, x, F1 + 1.02, z, lib, 8, 6); }
+  boxA(-13.4, -10.9, F1 + 0.95, F1 + 1.02, 1.97, 2.03, MAT.gold, lib);
+  boxA(-10.93, -10.87, F1 + 0.95, F1 + 1.02, 2.0, 4.6, MAT.gold, lib);
+  boxA(-4.67, 4.67, 0.42, F1, -4.6, 4.6, MAT.checker, interim('endless', S));
+  boxA(4.67, 13.6, 0.42, F1, -4.6, 4.6, MAT.checkerGreen, interim('conserv', S));
   // F2 slab (ceiling of F1, floor of F2)
   boxA(-13.6, 13.6, 7.0, 7.32, -4.6, 4.6, MAT.plaster, S);
   boxA(-13.6, 4.67, 7.32, F2, -4.6, 4.6, MAT.parquet, S);
-  if (!seance) boxA(4.67, 13.6, 7.32, F2, -4.6, 4.6, MAT.woodDark, S);
+  boxA(4.67, 13.6, 7.32, F2, -4.6, 4.6, MAT.woodDark, interim('seance', S));
   // attic slab with the slot the ride climbs through
   const slot = { u0: -13.4, u1: -9.0, v0: -4.6, v1: -2.0 };
   for (const r of subtractRects(-13.6, 13.6, -4.6, 4.6, [slot])) {
     boxA(r.u0, r.u1, 13.6, 13.92, r.v0, r.v1, MAT.plaster, S);
-    if (!attic) boxA(r.u0, r.u1, 13.92, AT, r.v0, r.v1, MAT.wood, S);
+    boxA(r.u0, r.u1, 13.92, AT, r.v0, r.v1, MAT.wood, interim('attic', S));
   }
   // sill plates over the wall tops inside the attic
   boxA(-14.05, 14.05, 13.98, 14.07, -5.06, -4.55, MAT.woodDark, S);
@@ -461,27 +459,29 @@ export function buildShell(root) {
     boxA(13.58, 13.7, y0, y1, -4.6, 4.7, MAT.walnut, S);
   }
   // partitions (never dissolve)
-  const part = (x, v0, v1, op, leftMat, rightMat, lw, rw, bareLeft = false, bareRight = false) => {
+  // (each side dressed by its room's baked set once that arrives: lateLeft, lateRight)
+  const part = (x, v0, v1, op, leftMat, rightMat, lw, rw, lateLeft, lateRight) => {
     const g = buildWall({
       openings: op, t: 0.4, split: 0.2,
-      outer: [{ u0: 0, u1: 9.2, v0, v1, mat: bareRight ? MAT.walnut : rightMat }],
-      inner: [{ u0: 0, u1: 9.2, v0, v1: v1 - 0.0, mat: leftMat, wainscot: lw, bare: bareLeft }],
+      outer: [{ u0: 0, u1: 9.2, v0, v1, mat: rightMat, late: lateRight }],
+      inner: [{ u0: 0, u1: 9.2, v0, v1: v1 - 0.0, mat: leftMat, wainscot: lw, late: lateLeft }],
       trims: true,
     });
     // add the right-side trims manually (buildWall trims only the inner side)
-    if (!bareRight) for (const r of subtractRects(0, 9.2, v0, v0 + 0.32, op)) boxA(r.u0, r.u1, r.v0, r.v1, 0, 0.05, MAT.walnut, g);
-    if (rw && !bareRight) {
-      for (const r of subtractRects(0, 9.2, v0, v0 + rw.h, op)) boxA(r.u0, r.u1, r.v0, r.v1, 0, 0.03, rw.mat, g);
-      for (const r of subtractRects(0, 9.2, v0 + rw.h, v0 + rw.h + 0.12, op)) boxA(r.u0, r.u1, r.v0, r.v1, 0, 0.07, MAT.walnut, g);
+    const R = interim(lateRight, g);
+    for (const r of subtractRects(0, 9.2, v0, v0 + 0.32, op)) boxA(r.u0, r.u1, r.v0, r.v1, 0, 0.05, MAT.walnut, R);
+    if (rw) {
+      for (const r of subtractRects(0, 9.2, v0, v0 + rw.h, op)) boxA(r.u0, r.u1, r.v0, r.v1, 0, 0.03, rw.mat, R);
+      for (const r of subtractRects(0, 9.2, v0 + rw.h, v0 + rw.h + 0.12, op)) boxA(r.u0, r.u1, r.v0, r.v1, 0, 0.07, MAT.walnut, R);
     }
     place(g, x + 0.2, 0, 4.6, Math.PI / 2);
     S.add(g);
     return g;
   };
   const doorF1 = [{ u0: -0.1, u1: 2.3, v0: F1, v1: 4.4 }];
-  part(-4.67, F1, 7.0, doorF1, MAT.papLibrary, MAT.papEyes, 2.0, { h: 2.0, mat: MAT.wainscotDark }, library, endless);
-  part(4.67, F1, 7.0, doorF1, MAT.papEyes, MAT.papConserv, 2.0, { h: 1.6, mat: MAT.wainscot }, endless, conserv);
-  part(4.67, F2, 13.6, [{ u0: 6.9, u1: 9.3, v0: F2, v1: 11.0 }], MAT.papBall, MAT.papSeance, 2.2, { h: 1.8, mat: MAT.wainscot }, bare, seance);
+  part(-4.67, F1, 7.0, doorF1, MAT.papLibrary, MAT.papEyes, 2.0, { h: 2.0, mat: MAT.wainscotDark }, 'library', 'endless');
+  part(4.67, F1, 7.0, doorF1, MAT.papEyes, MAT.papConserv, 2.0, { h: 1.6, mat: MAT.wainscot }, 'endless', 'conserv');
+  part(4.67, F2, 13.6, [{ u0: 6.9, u1: 9.3, v0: F2, v1: 11.0 }], MAT.papBall, MAT.papSeance, 2.2, { h: 1.8, mat: MAT.wainscot }, 'grandhall', 'seance');
   // door casings for the track openings in partitions
   for (const x of [-4.67, 4.67]) {
     boxA(x - 0.3, x + 0.3, 4.4, 4.75, 2.25, 4.6, MAT.walnut, S);
@@ -490,7 +490,7 @@ export function buildShell(root) {
   boxA(4.37, 4.97, 11.0, 11.35, -4.6, -2.15, MAT.gold, S);
   boxA(4.37, 4.97, F2, 11.0, -2.35, -2.15, MAT.gold, S);
   // endless hallway annex (forced perspective) behind the foyer
-  if (!endless) buildEndlessHall(S);
+  buildEndlessHall(interim('endless', S));
   toBin(S);
   return {};
 }
@@ -541,18 +541,17 @@ function buildEndlessHall(S) {
 export function buildMansard(root) {
   const y0 = D.AT, y1 = D.TOP;
   const ext = !!W.bakedExterior; // the baked exterior has the shingled slopes and the dormers (their panes stay)
-  const attic = !!W.bakedAttic; // and the baked Attic the slopes' lining, with its rafters (js/baked.js)
   const B = 14.25, Bz = 5.25, Tx = 12.3, Tz = 3.3;
   const slopes = [];
   const mk = (name, quads, n, c, extras) => {
     const g = new THREE.Group();
     for (const q of quads) {
       if (!ext) g.add(new THREE.Mesh(quadPrism(q[0], q[1], q[2], q[3], 0.12), MAT.shingle));
-      // inner skin (offset inward by 0.12)
+      // inner skin (offset inward by 0.12), until the baked Attic arrives with the slopes' lining and rafters
       const A = new THREE.Vector3(...q[0]), Bv = new THREE.Vector3(...q[1]), Dv = new THREE.Vector3(...q[3]);
       const nn = new THREE.Vector3().subVectors(Bv, A).cross(new THREE.Vector3().subVectors(Dv, A)).normalize().multiplyScalar(-0.12);
       const qi = q.map((p) => new THREE.Vector3(...p).add(nn).toArray());
-      if (!attic) g.add(new THREE.Mesh(quadPrism(qi[0], qi[1], qi[2], qi[3], 0.1), MAT.woodDark));
+      interim('attic', g).add(new THREE.Mesh(quadPrism(qi[0], qi[1], qi[2], qi[3], 0.1), MAT.woodDark));
     }
     if (extras) extras(g);
     const dst = new THREE.Group(); dst.name = 'mansard-' + name;
@@ -710,18 +709,19 @@ export function buildTower(root) {
   const apo = R * Math.cos(Math.PI / 8);
   const side = 2 * R * Math.sin(Math.PI / 8) + 0.08;
   const th = 0.32;
-  // the baked exterior (blender/exterior.py) brings the tower's stonework; its windows and the room inside stay here,
-  // unless the baked Stretching Room (blender/stretching_room.py) brings the room's walls, floor, rug and ceiling
-  const BK = !!W.bakedExterior, room = !W.bakedStretch;
+  // the baked exterior (blender/exterior.py) brings the tower's stonework; its windows and the room inside stay here.
+  // The room's walls, floor, rug and ceiling stand in for the baked Stretching Room's (blender/stretching_room.py)
+  // until it arrives (js/core.js interim()).
+  const BK = !!W.bakedExterior;
   // foundation
   const S = new THREE.Group();
   if (!BK) { const f = cyl(R + 0.25, R + 0.35, D.F1, MAT.stoneWarm, 0, D.F1 / 2, 0, S, 8); f.rotation.y = Math.PI / 8; }
-  if (room) { const fl = cyl(R - 0.1, R - 0.1, 0.05, MAT.woodDark, 0, D.F1 + 0.02, 0, S, 8); fl.rotation.y = Math.PI / 8; }
+  { const fl = cyl(R - 0.1, R - 0.1, 0.05, MAT.woodDark, 0, D.F1 + 0.02, 0, interim('stretch', S), 8); fl.rotation.y = Math.PI / 8; }
   bake(S, TG);
   // rug in the stretching room
-  if (room) {
+  {
     const rugM = new THREE.MeshStandardMaterial({ map: T.rugRed, roughness: 0.95 });
-    const rug = mesh(new THREE.CircleGeometry(2.0, 24), rugM, 0, D.F1 + 0.06, 0, TG); rug.rotation.x = -Math.PI / 2; rug.receiveShadow = true;
+    const rug = mesh(new THREE.CircleGeometry(2.0, 24), rugM, 0, D.F1 + 0.06, 0, interim('stretch', TG)); rug.rotation.x = -Math.PI / 2; rug.receiveShadow = true;
   }
   // the stretchable octagon room: 8 facets, each its own dissolver
   const facets = [];
@@ -737,12 +737,11 @@ export function buildTower(root) {
     const SS = new THREE.Group();
     if (i !== 2) { // facet 2 (normal +x) is buried against the house
       if (!BK) boxA(-side / 2, side / 2, 0, H0, apo - 0.14, apo, MAT.stoneWarm, SS);
-      if (room) {
-        boxA(-side / 2 + 0.05, side / 2 - 0.05, 0, H0, apo - th, apo - 0.14, MAT.papTower, SS);
-        boxA(-side / 2 + 0.05, side / 2 - 0.05, 0, 1.6, apo - th - 0.04, apo - th + 0.01, MAT.wainscotDark, SS);
-        boxA(-side / 2 + 0.05, side / 2 - 0.05, 1.6, 1.72, apo - th - 0.08, apo - th, MAT.gold, SS);
-        boxA(-side / 2 + 0.05, side / 2 - 0.05, H0 - 0.3, H0, apo - th - 0.12, apo - th, MAT.gold, SS);
-      }
+      const RS = interim('stretch', SS);
+      boxA(-side / 2 + 0.05, side / 2 - 0.05, 0, H0, apo - th, apo - 0.14, MAT.papTower, RS);
+      boxA(-side / 2 + 0.05, side / 2 - 0.05, 0, 1.6, apo - th - 0.04, apo - th + 0.01, MAT.wainscotDark, RS);
+      boxA(-side / 2 + 0.05, side / 2 - 0.05, 1.6, 1.72, apo - th - 0.08, apo - th, MAT.gold, RS);
+      boxA(-side / 2 + 0.05, side / 2 - 0.05, H0 - 0.3, H0, apo - th - 0.12, apo - th, MAT.gold, RS);
       // pilaster at the corner
       if (!BK) boxA(side / 2 - 0.2, side / 2 + 0.05, 0, H0, apo - 0.02, apo + 0.12, MAT.stoneDark, SS);
     }
@@ -775,7 +774,7 @@ export function buildTower(root) {
   const UP = new THREE.Group(); TG.add(UP);
   const U = new THREE.Group();
   const y0 = D.F2;
-  if (room) { const ceil = cyl(R - 0.15, R - 0.15, 0.3, MAT.woodDark, 0, y0 + 0.0, 0, U, 8); ceil.rotation.y = Math.PI / 8; }
+  { const ceil = cyl(R - 0.15, R - 0.15, 0.3, MAT.woodDark, 0, y0 + 0.0, 0, interim('stretch', U), 8); ceil.rotation.y = Math.PI / 8; }
   const trap = cyl(0.7, 0.7, 0.05, MAT.void, 0, y0 - 0.17, 0, U, 16);
   if (!BK) {
     const body = cyl(R, R, 13.1, MAT.stoneWarm, 0, y0 + 0.15 + 6.55, 0, U, 8); body.rotation.y = Math.PI / 8;

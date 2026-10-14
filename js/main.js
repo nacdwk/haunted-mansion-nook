@@ -1,5 +1,5 @@
 // Entry: renderer, camera, world assembly and the frame loop.
-import { THREE, W, updateTweens, updateDissolvers, updateLights, clamp, DEG, compactAll, bake } from './core.js';
+import { THREE, W, updateTweens, updateDissolvers, updateLights, clamp, DEG, compactAll, bake, settle, onUpdate } from './core.js';
 import { initFlames } from './props.js';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { setupPost } from './post.js';
@@ -22,21 +22,26 @@ async function boot() {
   const query = new URLSearchParams(location.search);
   W.classicFigures = query.get('figures') === '0';   // the older, simpler ghosts and caretaker, for comparison
   const timeout = (ms) => new Promise((_, no) => setTimeout(() => no(new Error('timed out')), ms));
-  // the Blender-built sets download while everything else is set up. ?baked=0 shows the procedural house, and
-  // ?exterior=0, ?grounds=0, ?endless=0, ?conserv=0, ?seance=0, ?attic=0, ?basement=0, ?library=0 or ?stretch=0 the procedural version of just that set; it is also the fallback for any set that fails
+  // The Blender-built sets. The exterior's, the grounds' and the figures download while everything else is set up; the
+  // rooms' follow in the background, and each room is built procedurally until its own arrives (js/core.js interim()).
+  // ?baked=0 shows the procedural house, and ?exterior=0, ?grounds=0, or a room's ?basement=0, ?stretch=0, ?library=0,
+  // ?endless=0, ?conserv=0, ?seance=0, ?grandhall=0 or ?attic=0 the procedural version of just that set; it is also
+  // the fallback for any set that fails
+  const off = (k) => query.get(k) === '0';
   const set = (m, name) => Promise.race([m.loadBakedSet(name), timeout(25000)])
     .catch((e) => { console.warn(`Baked ${name} unavailable, building the procedural one instead:`, e); return null; });
-  const bakedSets = query.get('baked') === '0' ? null
+  const bakedSets = off('baked') ? null
     : import('./baked.js').then(async (m) => {
-      const [hall, exterior, grounds, endless, conserv, seance, attic, basement, library, stretch, figures] = await Promise.all([set(m, 'grandhall'), query.get('exterior') === '0' ? null : set(m, 'exterior'),
-        query.get('grounds') === '0' ? null : set(m, 'grounds'), query.get('endless') === '0' ? null : set(m, 'endless'),
-        query.get('conserv') === '0' ? null : set(m, 'conserv'), query.get('seance') === '0' ? null : set(m, 'seance'),
-        query.get('attic') === '0' ? null : set(m, 'attic'), query.get('basement') === '0' ? null : set(m, 'basement'),
-        query.get('library') === '0' ? null : set(m, 'library'), query.get('stretch') === '0' ? null : set(m, 'stretch'),
+      const [exterior, grounds, figures] = await Promise.all([off('exterior') ? null : set(m, 'exterior'), off('grounds') ? null : set(m, 'grounds'),
         W.classicFigures ? null : Promise.race([m.loadFigures(), timeout(25000)]).catch((e) => { console.warn('Figures unavailable:', e); return null; })]);
-      m.releaseLoaders();
-      return { m, hall, exterior, grounds, endless, conserv, seance, attic, basement, library, stretch, figures };
+      return { m, exterior, grounds, figures };
     }).catch((e) => { console.warn('Baked sets unavailable:', e); return null; });
+  // the rooms' sets, in the order the ride meets them (the basement first, as it shows from outside): name, the W
+  // property its attach function reads, and that function (js/baked.js)
+  const ROOMS = [['basement', 'bakedBasement', 'addBakedBasement'], ['stretch', 'bakedStretch', 'addBakedStretch'],
+    ['library', 'bakedLibrary', 'addBakedLibrary'], ['endless', 'bakedEndless', 'addBakedEndless'],
+    ['conserv', 'bakedConserv', 'addBakedConservatory'], ['seance', 'bakedSeance', 'addBakedSeance'],
+    ['grandhall', 'bakedHall', 'addBakedHall'], ['attic', 'bakedAttic', 'addBakedAttic']].filter(([name]) => !off(name));
   // the official portraits and wallpaper (js/art.js); ?art=0 shows the house's own painted versions
   const officialArt = query.get('art') === '0' ? null
     : Promise.race([loadOfficialArt(), timeout(15000)])
@@ -109,17 +114,16 @@ async function boot() {
   status('Raising the walls…');
   await frame();
   const baked = bakedSets && await bakedSets;
-  W.bakedHall = baked?.hall || null;
   W.bakedExterior = baked?.exterior || null;
   W.bakedGrounds = baked?.grounds || null;
-  W.bakedEndless = baked?.endless || null;
-  W.bakedConserv = baked?.conserv || null;
-  W.bakedSeance = baked?.seance || null;
-  W.bakedAttic = baked?.attic || null;
-  W.bakedBasement = baked?.basement || null;
-  W.bakedLibrary = baked?.library || null;
-  W.bakedStretch = baked?.stretch || null;
   W.figures = baked?.figures || null;
+  // now the rooms' sets, two at a time, while the house goes up; each joins `arrived` when it is in (or has failed)
+  const rooms = baked ? ROOMS.map(([name, flag, add]) => ({ name, flag, add, set: null })) : [];
+  for (const r of rooms) W.late.set(r.name, { interim: [], pending: [], then: [] });
+  const arrived = [];
+  let nextRoom = 0;
+  const fetchRooms = async () => { while (nextRoom < rooms.length) { const r = rooms[nextRoom++]; r.set = await set(baked.m, r.name); arrived.push(r); } };
+  if (baked) Promise.all([fetchRooms(), fetchRooms()]).then(() => baked.m.releaseLoaders());
   const world = new THREE.Group(); world.name = 'world';
   scene.add(world);
   W.world = world;
@@ -132,14 +136,6 @@ async function boot() {
   status('Waking the residents…');
   await frame();
   buildRooms(world);
-  if (W.bakedHall) baked.m.addBakedHall(world);
-  if (W.bakedEndless) baked.m.addBakedEndless(world);
-  if (W.bakedConserv) baked.m.addBakedConservatory(world);
-  if (W.bakedSeance) baked.m.addBakedSeance(world);
-  if (W.bakedAttic) baked.m.addBakedAttic(world);
-  if (W.bakedBasement) baked.m.addBakedBasement(world);
-  if (W.bakedLibrary) baked.m.addBakedLibrary(world);
-  if (W.bakedStretch) baked.m.addBakedStretch(world);
   status('Digging the graveyard…');
   await frame();
   buildOutside(world);
@@ -168,9 +164,17 @@ async function boot() {
   window.addEventListener('resize', onResize);
   onResize();
 
+  // a room whose set has arrived trades its stand-ins for it (js/core.js settle())
+  const swapIn = (r) => {
+    W[r.flag] = r.set;
+    settle(r.name);
+    baked.m[r.add](world);
+    performance.mark(`room-${r.name}`);
+  };
   // merge static props, then warm up shaders for the render target we actually draw into
   status('Lighting the candles…');
   await frame();
+  for (const r of arrived.splice(0)) if (r.set) swapIn(r);   // those already in, before anything is merged
   if (W.staticBin) bake(W.staticBin, world);
   compactAll(world);
   // things that move must not cast shadows (the shadow map is only redrawn when the architecture moves)
@@ -188,6 +192,19 @@ async function boot() {
   W.ui.showIntro();
   document.getElementById('loader')?.classList.add('done');
   window.__W = W;
+  // the rest swap in as they arrive, one a frame: first their lightmaps go up to the GPU, then the room changes over.
+  // The Stretching Room's walls fit the tower at rest, so it waits for the room to settle.
+  onUpdate(() => {
+    const at = arrived.findIndex((r) => r.name !== 'stretch' || (W.tower.st.s === 0 && W.tower.st.target === 0));
+    if (at < 0) return;
+    const r = arrived[at];
+    if (r.set && !r.uploaded) { renderer.initTexture(r.set.warm); renderer.initTexture(r.set.cool); r.uploaded = true; return; }
+    arrived.splice(at, 1);
+    if (!r.set) return;
+    swapIn(r);
+    initFlames(scene);
+    W.shadowDirty = Math.max(W.shadowDirty, 2);
+  });
 
   let last = performance.now();
   let perfAcc = 0, perfN = 0, dpr = maxDpr, shadowClock = 0;

@@ -42,12 +42,23 @@ function loader() {
 // once every set has loaded, the Draco decoder's workers can go
 export function releaseLoaders() { gltf?.draco.dispose(); gltf = null; }
 
+// Lightmaps are decoded off the main thread where the browser does that well (GLTFLoader's test), so that a set
+// arriving after the house is up doesn't hold up a frame decoding them
+const BITMAPS = (() => {
+  if (typeof createImageBitmap === 'undefined') return false;
+  const ua = navigator.userAgent;
+  if (/^((?!chrome|android).)*safari/i.test(ua)) return +(ua.match(/Version\/(\d+)/)?.[1] ?? 0) >= 17;
+  const ff = ua.match(/Firefox\/(\d+)/);
+  return !ff || +ff[1] >= 98;
+})();
+
 // Fetch a set's geometry, lightmaps and bake stats. Runs while the rest of the mansion is being built.
 export async function loadBakedSet(name) {
-  const tl = new THREE.TextureLoader();
-  const lightmap = (f) => tl.loadAsync(DIR + f).then((t) => {
+  const tl = BITMAPS ? new THREE.ImageBitmapLoader().setOptions({ premultiplyAlpha: 'none', colorSpaceConversion: 'none' }) : new THREE.TextureLoader();
+  const lightmap = (f) => tl.loadAsync(DIR + f).then((img) => {
+    const t = img.isTexture ? img : new THREE.Texture(img);
     t.flipY = false; t.colorSpace = THREE.NoColorSpace; t.generateMipmaps = false;
-    t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter;
+    t.minFilter = THREE.LinearFilter; t.magFilter = THREE.LinearFilter; t.needsUpdate = true;
     return t;
   });
   const [model, warm, cool, meta] = await Promise.all([

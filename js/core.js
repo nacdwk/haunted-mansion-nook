@@ -14,7 +14,7 @@ export function mulberry32(a) {
 }
 
 export const W = {
-  staticBin: null, shadowDirty: 4,
+  staticBin: null, shadowDirty: 4, late: new Map(),
   scene: null, camera: null, renderer: null, controls: null, composer: null,
   t: 0, dt: 0,
   updaters: [],
@@ -59,6 +59,42 @@ export function noise1(x) {
 
 export function onUpdate(fn) { W.updaters.push(fn); return fn; }
 export function toBin(S) { if (!W.staticBin) W.staticBin = new THREE.Group(); W.staticBin.add(S); return S; }
+
+// ---------- sets that arrive after the house is up ----------
+// The rooms' Blender sets download in the background (js/main.js), each listed in W.late until it is in. Meanwhile the
+// procedural pieces a set will replace stand in for it, built into its interim groups; the pieces only the set needs
+// (the bare wall behind its dressing) wait, hidden, in its pending groups. The merging keeps both kinds apart (bake()),
+// so either can go or show whole. A set that isn't coming leaves the house as procedural as it always was.
+function lateGroup(name, parent, kind) {
+  const L = W.late.get(name);
+  const id = `${kind}-${name}`;
+  let g = L && parent.children.find((c) => c.name === id);
+  if (g) return g;
+  g = new THREE.Group(); g.name = id; g.userData.apart = true;
+  if (L) { parent.add(g); L[kind].push(g); }
+  return g;
+}
+export function interim(name, parent) { return W.late.has(name) ? lateGroup(name, parent, 'interim') : parent; }
+export function pending(name, parent) { const g = lateGroup(name, parent, 'pending'); g.visible = false; return g; }
+// something else to do when the set arrives (it is in W.baked… by then)
+export function whenBaked(name, fn) { W.late.get(name)?.then.push(fn); }
+// the set has arrived: its interim groups go, its pending ones show
+export function settle(name) {
+  const L = W.late.get(name);
+  if (!L) return;
+  W.late.delete(name);
+  const gone = new Set();
+  for (const g of L.interim) {
+    g.visible = false;           // (its flames, drawn elsewhere, check that)
+    g.traverse((o) => { if (o.isMesh) { gone.add(o); o.geometry.dispose(); if (o.isInstancedMesh) o.dispose(); } });
+    const holder = g.parent;
+    g.removeFromParent();
+    if (holder && !holder.children.length && holder.name === '') holder.removeFromParent();   // bake()'s empty holder
+  }
+  for (const d of W.dissolvers) if (d.meshes.some((m) => gone.has(m))) d.meshes = d.meshes.filter((m) => !gone.has(m));
+  for (const g of L.pending) g.visible = true;
+  for (const fn of L.then) fn();
+}
 
 // ---------- tweens & timers ----------
 const tweens = [];
@@ -215,7 +251,7 @@ export function bake(src, parent, { cast = true, receive = true } = {}) {
   const buckets = new Map();
   const keeps = [];
   const visit = (o) => {
-    if (o !== src && (o.userData.keep || o.userData.keepGroup || o.isInstancedMesh || o.isLight || o.isSprite || o.isPoints || o.isLine)) { keeps.push(o); return; }
+    if (o !== src && (o.userData.keep || o.userData.keepGroup || o.userData.apart || o.isInstancedMesh || o.isLight || o.isSprite || o.isPoints || o.isLine)) { keeps.push(o); return; }
     if (o.isMesh) {
       const m = o.material;
       if (Array.isArray(m) || m.transparent && m.userData.noBake) { keeps.push(o); return; }
@@ -245,6 +281,7 @@ export function bake(src, parent, { cast = true, receive = true } = {}) {
       if (!k.castShadow) k.castShadow = cast && !mm.transparent && !mm.userData.noShadow && !k.userData.noShadow;
       k.receiveShadow = true;
     }
+    if (k.userData.apart) compact(k);   // a late set's interim or pending pieces, merged among themselves
   }
   const out = [];
   for (const [m, list] of buckets) {
