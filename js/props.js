@@ -3,7 +3,7 @@ import { THREE, W, box, boxA, cyl, mesh, sphere, group, TAU, rand, onUpdate, mat
 import { MAT, T, paintingMat } from './materials.js';
 
 // ---- flames (one updater flickers them all)
-const FLAMES = [];
+let FLAMES = [];
 // each flame is an invisible anchor; all flames of a colour draw as one instanced mesh
 export function flame(parent, x, y, z, s = 1, m = MAT.flame) {
   const f = new THREE.Object3D();
@@ -17,10 +17,17 @@ export function flame(parent, x, y, z, s = 1, m = MAT.flame) {
   return f;
 }
 const FLAME_GEO = (() => { const g = new THREE.SphereGeometry(0.05, 7, 6); g.scale(1, 2.1, 1); g.translate(0, 0.07, 0); return g; })();
+const sets = [];
+let flicker = null;
+// Draws the flames there are: at startup, and again when a set arriving late brings its own (and its interim pieces
+// take theirs away with them)
 export function initFlames(scene) {
+  for (const s of sets) { scene.remove(s.im); s.im.dispose(); }
+  sets.length = 0;
+  const inScene = (f) => { let o = f; while (o.parent) o = o.parent; return o === scene; };
+  FLAMES = FLAMES.filter(inScene);
   const byMat = new Map();
   for (const f of FLAMES) { const m = f.userData.flameMat; if (!byMat.has(m)) byMat.set(m, []); byMat.get(m).push(f); }
-  const sets = [];
   for (const [m, list] of byMat) {
     const im = new THREE.InstancedMesh(FLAME_GEO, m, list.length);
     im.frustumCulled = false; im.castShadow = false; im.receiveShadow = false;
@@ -28,8 +35,9 @@ export function initFlames(scene) {
     scene.add(im);
     sets.push({ im, list });
   }
+  if (flicker) return;
   const m4 = new THREE.Matrix4(), sm = new THREE.Matrix4(), zero = new THREE.Matrix4().makeScale(0, 0, 0);
-  onUpdate((t) => {
+  flicker = onUpdate((t) => {
     for (const s of sets) {
       for (let i = 0; i < s.list.length; i++) {
         const f = s.list[i];
@@ -278,19 +286,10 @@ export function rugPlane(parent, x, y, z, w, d, map, ry = 0) {
   r.receiveShadow = true;
   return r;
 }
-// onlyFire draws just the flames (a baked set brings the rest), drawing the same random numbers
+// onlyFire draws just the flames (a baked set brings the rest, or chimneypiece() does), drawing the same random numbers
 export function fireplace(parent, x, y, z, ry, { w = 2.5, h = 2.3, d = 0.6, stone = MAT.marble, onlyFire = false } = {}) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.userData.keepGroup = true; parent.add(g);
-  if (!onlyFire) {
-    boxA(-w / 2, -w / 2 + 0.42, 0, h, 0, d, stone, g);
-    boxA(w / 2 - 0.42, w / 2, 0, h, 0, d, stone, g);
-    boxA(-w / 2, w / 2, h - 0.5, h, 0, d, stone, g);
-    boxA(-w / 2 - 0.2, w / 2 + 0.2, h, h + 0.14, -0.05, d + 0.16, stone, g);
-    boxA(-w / 2 + 0.42, w / 2 - 0.42, 0, h - 0.5, 0, 0.08, MAT.void, g);
-    boxA(-w / 2 - 0.1, w / 2 + 0.1, -0.01, 0.06, 0, d + 0.4, MAT.stoneDark, g);
-    // logs
-    for (const [lx, ry2] of [[-0.25, 0.2], [0.2, -0.3]]) { const l = cyl(0.09, 0.09, 0.9, MAT.bark, lx * 0.6, 0.15, 0.3, g, 6); l.rotation.z = Math.PI / 2; l.rotation.y = ry2; }
-  }
+  if (!onlyFire) chimneypiece(g, 0, 0, 0, 0, { w, h, d, stone });
   const fires = [];
   for (let i = 0; i < 5; i++) {
     const f = new THREE.Mesh(new THREE.ConeGeometry(0.13 + rand(0, 0.08), 0.5 + rand(0, 0.3), 6), glow(i % 2 ? '#ff7a1a' : '#ffc04a', 4));
@@ -298,6 +297,19 @@ export function fireplace(parent, x, y, z, ry, { w = 2.5, h = 2.3, d = 0.6, ston
   }
   const s = Math.random() * 10;
   onUpdate((t) => { fires.forEach((f, i) => { f.scale.y = 0.75 + 0.35 * Math.abs(Math.sin(t * (6 + i) + s + i)); f.position.y = 0.2 + f.scale.y * 0.25; }); });
+  return g;
+}
+// the fireplace without its fire
+export function chimneypiece(parent, x, y, z, ry, { w = 2.5, h = 2.3, d = 0.6, stone = MAT.marble } = {}) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; parent.add(g);
+  boxA(-w / 2, -w / 2 + 0.42, 0, h, 0, d, stone, g);
+  boxA(w / 2 - 0.42, w / 2, 0, h, 0, d, stone, g);
+  boxA(-w / 2, w / 2, h - 0.5, h, 0, d, stone, g);
+  boxA(-w / 2 - 0.2, w / 2 + 0.2, h, h + 0.14, -0.05, d + 0.16, stone, g);
+  boxA(-w / 2 + 0.42, w / 2 - 0.42, 0, h - 0.5, 0, 0.08, MAT.void, g);
+  boxA(-w / 2 - 0.1, w / 2 + 0.1, -0.01, 0.06, 0, d + 0.4, MAT.stoneDark, g);
+  // logs
+  for (const [lx, ry2] of [[-0.25, 0.2], [0.2, -0.3]]) { const l = cyl(0.09, 0.09, 0.9, MAT.bark, lx * 0.6, 0.15, 0.3, g, 6); l.rotation.z = Math.PI / 2; l.rotation.y = ry2; }
   return g;
 }
 // coffin outline (top view) as an extruded hexagon; returns { g, lid (pivot group) }
@@ -383,17 +395,11 @@ export function sconce(parent, x, y, z, ry = 0, { m = MAT.flame, metal = MAT.bra
   const f = candle(g, 0, 0.05, 0.28, { h: 0.22, m });
   return { g, flame: f };
 }
-// a classic grandfather clock with 13 hours; returns hands. body: false leaves the case to a baked set (the dial,
-// hands and pendulum are still drawn here)
+// a classic grandfather clock with 13 hours; returns hands. body: false leaves the case to a baked set, or to
+// clockCase() (the dial, hands and pendulum are still drawn here)
 export function grandfatherClock(parent, x, y, z, ry = 0, { body = true } = {}) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.userData.keepGroup = true; parent.add(g);
-  const wood = MAT.walnut;
-  if (body) {
-    boxA(-0.45, 0.45, 0, 0.5, -0.25, 0.25, wood, g);
-    boxA(-0.36, 0.36, 0.5, 2.3, -0.2, 0.2, wood, g);
-    boxA(-0.46, 0.46, 2.3, 3.25, -0.26, 0.26, wood, g);
-    const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.2, 3, 1), wood); crown.rotation.set(Math.PI / 2, 0, Math.PI / 2); crown.position.set(0, 3.4, 0); crown.scale.set(1, 1, 0.6); g.add(crown);
-  }
+  if (body) clockCase(g, 0, 0, 0, 0);
   const face = mesh(new THREE.CircleGeometry(0.36, 28), new THREE.MeshStandardMaterial({ map: T.clock, roughness: 0.6, emissiveMap: T.clock, emissive: 0xffffff, emissiveIntensity: 0.15 }), 0, 2.78, 0.265, g);
   const ring = new THREE.Mesh(new THREE.TorusGeometry(0.37, 0.03, 6, 28), MAT.gold); ring.position.set(0, 2.78, 0.27); g.add(ring);
   const hour = new THREE.Group(); hour.position.set(0, 2.78, 0.28); hour.userData.keepGroup = true; g.add(hour);
@@ -415,16 +421,20 @@ export function grandfatherClock(parent, x, y, z, ry = 0, { body = true } = {}) 
   });
   return { g, st };
 }
+export function clockCase(parent, x, y, z, ry = 0) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; parent.add(g);
+  const wood = MAT.walnut;
+  boxA(-0.45, 0.45, 0, 0.5, -0.25, 0.25, wood, g);
+  boxA(-0.36, 0.36, 0.5, 2.3, -0.2, 0.2, wood, g);
+  boxA(-0.46, 0.46, 2.3, 3.25, -0.26, 0.26, wood, g);
+  const crown = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.5, 0.2, 3, 1), wood); crown.rotation.set(Math.PI / 2, 0, Math.PI / 2); crown.position.set(0, 3.4, 0); crown.scale.set(1, 1, 0.6); g.add(crown);
+  return g;
+}
 // a paneled door with a knocker; returns the slab (for bulging/knocking)
-// frame: null leaves the frame to a baked set
+// frame: null leaves the frame to a baked set, or to doorFrame()
 export function door(parent, x, y, z, ry = 0, { w = 1.4, h = 3.1, wood = MAT.mahogany, frame = MAT.gold } = {}) {
   const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; g.userData.keepGroup = true; parent.add(g);
-  if (frame) {
-    boxA(-w / 2 - 0.16, -w / 2, 0, h + 0.16, 0, 0.12, frame, g);
-    boxA(w / 2, w / 2 + 0.16, 0, h + 0.16, 0, 0.12, frame, g);
-    boxA(-w / 2 - 0.16, w / 2 + 0.16, h, h + 0.16, 0, 0.12, frame, g);
-    boxA(-w / 2 - 0.3, w / 2 + 0.3, h + 0.16, h + 0.32, -0.02, 0.2, frame, g);
-  }
+  if (frame) doorFrame(g, 0, 0, 0, 0, { w, h, frame });
   const slabP = new THREE.Group(); slabP.position.set(0, 0, 0.02); slabP.userData.keepGroup = true; g.add(slabP);
   const slab = new THREE.Group(); slab.userData.keepGroup = true; slabP.add(slab);
   boxA(-w / 2, w / 2, 0, h, 0, 0.07, wood, slab);
@@ -433,6 +443,14 @@ export function door(parent, x, y, z, ry = 0, { w = 1.4, h = 3.1, wood = MAT.mah
   sphere(0.05, MAT.brass, 0, 1.7, 0.12, slab, 8, 6);
   sphere(0.045, MAT.brass, w / 2 - 0.15, 1.2, 0.13, slab, 8, 6);
   return { g, slab, ring };
+}
+export function doorFrame(parent, x, y, z, ry = 0, { w = 1.4, h = 3.1, frame = MAT.gold } = {}) {
+  const g = new THREE.Group(); g.position.set(x, y, z); g.rotation.y = ry; parent.add(g);
+  boxA(-w / 2 - 0.16, -w / 2, 0, h + 0.16, 0, 0.12, frame, g);
+  boxA(w / 2, w / 2 + 0.16, 0, h + 0.16, 0, 0.12, frame, g);
+  boxA(-w / 2 - 0.16, w / 2 + 0.16, h, h + 0.16, 0, 0.12, frame, g);
+  boxA(-w / 2 - 0.3, w / 2 + 0.3, h + 0.16, h + 0.32, -0.02, 0.2, frame, g);
+  return g;
 }
 // spooky dead tree from recursive tapered branches
 export function deadTree(parent, x, y, z, { h = 6, r = 0.35, seed = 1, m = MAT.bark, spread = 1, moss = false, crown = false } = {}) {

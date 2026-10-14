@@ -1,7 +1,7 @@
 // Interiors: every room's set dressing, its residents, and what happens when you poke them.
 import {
   THREE, W, box, boxA, cyl, mesh, sphere, bake, TAU, DEG, rand, pick, onUpdate, clamp, lerp, damp, smooth,
-  addLight, hotspot, proxy, tween, wait, makeGhost, ghostMaterial, mat, glow, easeInOut, easeOut, toBin,
+  addLight, hotspot, proxy, tween, wait, makeGhost, ghostMaterial, mat, glow, easeInOut, easeOut, toBin, interim, whenBaked,
 } from './core.js';
 import { MAT, T, paintingMat } from './materials.js';
 import { D } from './house.js';
@@ -64,25 +64,24 @@ function library(root) {
   const S = new THREE.Group(), G = new THREE.Group(); root.add(G);
   const y0 = D.F1;
   // The baked room (blender/library.py) brings the shelves and their books, the chimneypiece, the candles, the rug, the
-  // wingback, the table and the pedestals. The shelves still roll the house's dice, into a group that's thrown away,
-  // and their books still say where a pulled book flies from; the fireplace keeps only its fire.
-  const BK = !!W.bakedLibrary, SB = BK ? new THREE.Group() : S;
+  // wingback, the table and the pedestals; until it arrives, these stand in for them (js/core.js interim()). The
+  // shelves' books still say where a pulled book flies from, and the fire stays.
+  const L = interim('library', S);
   // shelves along the back wall
-  const shelf = P.bookshelf(SB, -13.25, -5.3, y0, 6.55, -4.58, { depth: 0.55, shelves: 6, facing: 1 });
-  if (!BK) boxA(-13.3, -5.25, 6.28, 6.33, -3.93, -3.88, MAT.brass, S); // ladder rail
+  const shelf = P.bookshelf(L, -13.25, -5.3, y0, 6.55, -4.58, { depth: 0.55, shelves: 6, facing: 1 });
+  boxA(-13.3, -5.25, 6.28, 6.33, -3.93, -3.88, MAT.brass, L); // ladder rail
   // fireplace on the left wall, aging portrait above
-  P.fireplace(BK ? G : S, -13.58, y0, 0.2, Math.PI / 2, { w: 2.6, h: 2.3, stone: MAT.marble, onlyFire: BK });
+  P.chimneypiece(L, -13.58, y0, 0.2, Math.PI / 2, { w: 2.6, h: 2.3, stone: MAT.marble });
+  P.fireplace(G, -13.58, y0, 0.2, Math.PI / 2, { w: 2.6, h: 2.3, stone: MAT.marble, onlyFire: true });
   const ageing = P.framed(G, T.aging[0], 1.45, 1.8, { ei: 0.25 });
   ageing.position.set(-13.48, 4.75, 0.2); ageing.rotation.y = Math.PI / 2;
-  if (!BK) {
-    P.candelabra(S, -13.25, y0 + 2.44, -0.75, { arms: 1, s: 0.8 });
-    P.candelabra(S, -13.25, y0 + 2.44, 1.15, { arms: 1, s: 0.8 });
-    // rug, chair, tables
-    P.rugPlane(S, -8.8, y0, 0.2, 4.6, 3.1, T.rugRed);
-    P.wingback(S, -10.4, y0, 0.3, -0.85, { fabric: MAT.velvetRed });
-    P.table(S, -7.0, y0, 1.0, 1.2, 0.8, { h: 0.85, wood: MAT.mahogany });
-    P.candelabra(S, -7.0, y0 + 0.85, 1.0, { arms: 3, s: 0.6 });
-  }
+  P.candelabra(L, -13.25, y0 + 2.44, -0.75, { arms: 1, s: 0.8 });
+  P.candelabra(L, -13.25, y0 + 2.44, 1.15, { arms: 1, s: 0.8 });
+  // rug, chair, tables
+  P.rugPlane(L, -8.8, y0, 0.2, 4.6, 3.1, T.rugRed);
+  P.wingback(L, -10.4, y0, 0.3, -0.85, { fabric: MAT.velvetRed });
+  P.table(L, -7.0, y0, 1.0, 1.2, 0.8, { h: 0.85, wood: MAT.mahogany });
+  P.candelabra(L, -7.0, y0 + 0.85, 1.0, { arms: 3, s: 0.6 });
   // globe on a stand
   const globeG = new THREE.Group(); globeG.position.set(-6.0, y0, -2.4); G.add(globeG);
   for (const a of [0, 2.1, 4.2]) { const l = cyl(0.03, 0.03, 0.9, MAT.walnut, Math.cos(a) * 0.18, 0.45, Math.sin(a) * 0.18, globeG, 5); l.rotation.set(Math.sin(a) * 0.2, 0, -Math.cos(a) * 0.2); }
@@ -95,10 +94,8 @@ function library(root) {
   globe.userData.keep = true;
   onUpdate((t, dt) => { globe.rotation.y += dt * 0.3; });
   // busts that watch you
-  if (!BK) {
-    P.pedestal(S, -12.9, y0, -2.3, 1.15);
-    P.pedestal(S, -8.2, y0, -3.45, 1.0);
-  }
+  P.pedestal(L, -12.9, y0, -2.3, 1.15);
+  P.pedestal(L, -8.2, y0, -3.45, 1.0);
   const busts = [
     P.bust(G, -12.9, y0 + 1.15, -2.3, { s: 0.9, ry: 1.0, hat: 'laurel' }),
     P.bust(G, -8.2, y0 + 1.0, -3.45, { s: 0.85, ry: 0.2, hat: 'curls' }),
@@ -182,7 +179,7 @@ function library(root) {
     addBook(new THREE.Vector3(b.x, b.y, -4.0));
     sfx('flutter');
   });
-  hotspot(BK ? proxy(8.73, 6.0, 0.6, -9.24, y0 + 3.0, -4.3, G) : shelf.im, 'library', 'Pull a book from the shelf', fly);
+  hotspot(proxy(8.73, 6.0, 0.6, -9.24, y0 + 3.0, -4.3, G), 'library', 'Pull a book from the shelf', fly);   // the shelves, baked or standing in
   for (const b of busts) hotspot(b.g, 'library', 'They are watching you', () => { sfx('whisper'); say('“We have read about you.”', { who: 'the busts' }); });
   hotspot(reader, 'library', 'Disturb the reader', () => { sfx('shush'); say('“Shhh.”', { who: 'the reader' }); for (let i = 0; i < 3; i++) addBook(new THREE.Vector3(-10.9, 2.2, 0.8)); });
   room.actions.push({ label: 'Make the busts look away', fn: () => { W.lookAt = new THREE.Vector3(-30, 3, -30); setTimeout(() => { W.lookAt = null; }, 2600); sfx('whisper'); } });
@@ -198,21 +195,20 @@ function hall(root) {
   });
   const S = new THREE.Group(), G = new THREE.Group(); root.add(G);
   const y0 = D.F1;
-  // the baked hall (blender/endless_hall.py) brings its own chandelier, rug, sconces, door frames and clock case
-  const BK = !!W.bakedEndless, frame = BK ? null : MAT.gold;
-  if (!BK) {
-    P.chandelier(S, 0, 7.0, 0.6, { r: 0.8, candles: 8, chain: 0.9 });
-    P.rugPlane(S, 0, y0, 0, 1.8, 8.8, T.rugPurple);
-    P.sconce(S, -1.95, 4.2, -4.58, 0, { m: MAT.flame });
-    P.sconce(S, 1.95, 4.2, -4.58, 0, { m: MAT.flame });
-    P.sconce(S, -4.45, 4.2, 1.6, Math.PI / 2);
-  }
+  // the baked hall (blender/endless_hall.py) brings its own chandelier, rug, sconces, door frames and clock case; until
+  // it arrives, these stand in for them (js/core.js interim())
+  const E = interim('endless', S);
+  P.chandelier(E, 0, 7.0, 0.6, { r: 0.8, candles: 8, chain: 0.9 });
+  P.rugPlane(E, 0, y0, 0, 1.8, 8.8, T.rugPurple);
+  P.sconce(E, -1.95, 4.2, -4.58, 0, { m: MAT.flame });
+  P.sconce(E, 1.95, 4.2, -4.58, 0, { m: MAT.flame });
+  P.sconce(E, -4.45, 4.2, 1.6, Math.PI / 2);
   // knocking doors
   const doors = [
-    P.door(G, -4.45, y0, -2.9, Math.PI / 2, { w: 1.4, h: 3.2, frame }),
-    P.door(G, -4.45, y0, 0.1, Math.PI / 2, { w: 1.3, h: 3.0, wood: mat('#3a1c2a', 0.6), frame }),
-    P.door(G, 3.0, y0, -4.58, 0, { w: 1.4, h: 3.2, wood: mat('#2c1f3a', 0.6), frame }),
-  ];
+    [-4.45, -2.9, Math.PI / 2, { w: 1.4, h: 3.2 }],
+    [-4.45, 0.1, Math.PI / 2, { w: 1.3, h: 3.0, wood: mat('#3a1c2a', 0.6) }],
+    [3.0, -4.58, 0, { w: 1.4, h: 3.2, wood: mat('#2c1f3a', 0.6) }],
+  ].map(([x, z, ry, o]) => { P.doorFrame(E, x, y0, z, ry, o); return P.door(G, x, y0, z, ry, { ...o, frame: null }); });
   const dst = doors.map(() => ({ knock: 0, bulge: 0, next: rand(3, 9) }));
   onUpdate((t, dt) => {
     doors.forEach((d, i) => {
@@ -229,8 +225,9 @@ function hall(root) {
     });
   });
   // the clock with thirteen hours
-  const clock = P.grandfatherClock(G, -3.0, y0, -4.32, 0, { body: !BK });
-  if (BK) proxy(0.95, 3.75, 0.55, 0, 1.87, 0, clock.g);   // the baked case is still the thing to click
+  P.clockCase(E, -3.0, y0, -4.32, 0);
+  const clock = P.grandfatherClock(G, -3.0, y0, -4.32, 0, { body: false });
+  proxy(0.95, 3.75, 0.55, 0, 1.87, 0, clock.g);   // the case, baked or standing in, is the thing to click
   // floating candelabra in the endless hall
   const cand = P.candelabra(G, 0, 0, 0, { arms: 3, s: 0.55, anim: true });
   cand.g.userData.keepGroup = true;
@@ -269,11 +266,10 @@ function conservatory(root) {
   const S = new THREE.Group(), G = new THREE.Group(); root.add(G);
   const y0 = D.F1;
   // the baked conservatory (blender/conservatory.py) brings its own bier, candle stands, wreaths, plants, plant stand and
-  // vines. Those that roll the house's dice are still built, into a group that's thrown away, so everything after
-  // them comes out the same.
-  const BK = !!W.bakedConserv, junk = new THREE.Group(), SB = BK ? junk : S;
+  // vines; until it arrives, these stand in for them (js/core.js interim())
+  const C = interim('conserv', S);
   // the bier
-  if (!BK) P.table(S, 8.6, y0, -1.1, 2.7, 1.1, { h: 0.85, wood: MAT.walnut, cloth: MAT.velvet });
+  P.table(C, 8.6, y0, -1.1, 2.7, 1.1, { h: 0.85, wood: MAT.walnut, cloth: MAT.velvet });
   const cof = P.coffin(G, { len: 2.4, w: 0.8, h: 0.55 });
   cof.g.position.set(8.6, y0 + 0.85, -1.1);
   // bony hands that peek from under the lid
@@ -306,26 +302,26 @@ function conservatory(root) {
     innerE.base = cst.open * 30;
   });
   // candle stands and wreaths
-  if (!BK) for (const x of [6.8, 10.4]) { cyl(0.08, 0.16, 1.6, MAT.iron, x, y0 + 0.8, -1.1, S, 6); cyl(0.14, 0.08, 0.06, MAT.iron, x, y0 + 1.63, -1.1, S, 8); P.candle(S, x, y0 + 1.66, -1.1, { h: 0.5, r: 0.07 }); }
+  for (const x of [6.8, 10.4]) { cyl(0.08, 0.16, 1.6, MAT.iron, x, y0 + 0.8, -1.1, C, 6); cyl(0.14, 0.08, 0.06, MAT.iron, x, y0 + 1.63, -1.1, C, 8); P.candle(C, x, y0 + 1.66, -1.1, { h: 0.5, r: 0.07 }); }
   for (const [x, z] of [[6.0, -3.4], [11.3, -3.4]]) {
-    const wr = new THREE.Group(); wr.position.set(x, y0, z); SB.add(wr);
+    const wr = new THREE.Group(); wr.position.set(x, y0, z); C.add(wr);
     for (const sx of [-0.25, 0.25]) { const l = cyl(0.025, 0.025, 1.6, MAT.walnut, sx, 0.8, 0.1, wr, 4); l.rotation.x = -0.12; }
     const ring = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.11, 6, 14), MAT.deadLeaf); ring.position.y = 1.45; wr.add(ring);
     for (let i = 0; i < 9; i++) { const a = i / 9 * TAU; sphere(0.07, mat(pick(['#5a1a2a', '#4a2a3a', '#6a5a3a']), 0.8, 0, { flat: true }), Math.cos(a) * 0.42, 1.45 + Math.sin(a) * 0.42, 0.08, wr, 5, 4); }
   }
   // dead plants
-  P.pot(SB, 5.7, y0, -3.9, { s: 1.1 }); P.pot(SB, 7.6, y0, -4.0, { s: 0.9 }); P.pot(SB, 9.9, y0, -4.0, { s: 1.0 });
-  P.pot(SB, 12.7, y0, -3.7, { s: 1.4, tall: true }); P.pot(SB, 13.0, y0, -1.2, { s: 1.0 }); P.pot(SB, 5.5, y0, 1.2, { s: 0.85 });
+  P.pot(C, 5.7, y0, -3.9, { s: 1.1 }); P.pot(C, 7.6, y0, -4.0, { s: 0.9 }); P.pot(C, 9.9, y0, -4.0, { s: 1.0 });
+  P.pot(C, 12.7, y0, -3.7, { s: 1.4, tall: true }); P.pot(C, 13.0, y0, -1.2, { s: 1.0 }); P.pot(C, 5.5, y0, 1.2, { s: 0.85 });
   // plant stand with a raven
-  if (!BK) { cyl(0.06, 0.12, 1.6, MAT.iron, 11.6, y0 + 0.8, 0.6, S, 6); cyl(0.3, 0.3, 0.06, MAT.iron, 11.6, y0 + 1.62, 0.6, S, 10); }
+  cyl(0.06, 0.12, 1.6, MAT.iron, 11.6, y0 + 0.8, 0.6, C, 6); cyl(0.3, 0.3, 0.06, MAT.iron, 11.6, y0 + 1.62, 0.6, C, 10);
   const rv = P.raven(G, 11.6, y0 + 1.65, 0.6, -0.7, 1.4);
   // creeping vines on the glass
   for (let i = 0; i < 6; i++) {
     const pts = []; let x = rand(5.6, 12.6), y = y0; const z = -4.45;
     for (let k = 0; k < 9; k++) { pts.push(new THREE.Vector3(x, y, z)); x += rand(-0.5, 0.5); y += rand(0.4, 0.75); }
     const tube = new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 24, 0.03, 4);
-    mesh(tube, MAT.bark, 0, 0, 0, SB);
-    for (let k = 1; k < pts.length; k++) { const lf = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 3), MAT.deadLeaf); lf.position.copy(pts[k]); lf.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3)); SB.add(lf); }
+    mesh(tube, MAT.bark, 0, 0, 0, C);
+    for (let k = 1; k < pts.length; k++) { const lf = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.22, 3), MAT.deadLeaf); lf.position.copy(pts[k]); lf.rotation.set(rand(0, 3), rand(0, 3), rand(0, 3)); C.add(lf); }
   }
   const gl = new THREE.PointLight(0x7dffb8, 13, 12, 1.4); gl.position.set(9.0, 5.0, 0.4);
   addLight(gl, { room: 'conserv', flicker: 0.12 });
@@ -429,25 +425,21 @@ function seance(root) {
     sst.lev = damp(sst.lev, sst.frenzy > 0.3 ? 1 : 0, 2, dt);
   });
   // left partition: drapes + a cabinet of curiosities. The baked room (blender/seance.py) brings its own drapes, cabinet
-  // and bottles (the cabinet moved out of the ride's way, under the portrait), the zodiac ceiling, rug and sconces; the
-  // bottles still roll the house's dice, into a group that's thrown away, so everything after them comes out the same.
-  const BK = !!W.bakedSeance, SB = BK ? new THREE.Group() : S;
-  if (!BK) {
-    boxA(4.9, 5.08, y0, 13.4, -1.2, -0.4, MAT.curtainPurple, S);
-    boxA(4.9, 5.08, y0, 13.4, 3.0, 3.8, MAT.curtainPurple, S);
-    boxA(4.9, 5.12, 12.6, 13.5, -1.4, 4.0, MAT.curtainPurple, S);
-  }
+  // and bottles (the cabinet moved out of the ride's way, under the portrait), the zodiac ceiling, rug and sconces;
+  // until it arrives, these stand in for them (js/core.js interim()).
+  const SE = interim('seance', S);
+  boxA(4.9, 5.08, y0, 13.4, -1.2, -0.4, MAT.curtainPurple, SE);
+  boxA(4.9, 5.08, y0, 13.4, 3.0, 3.8, MAT.curtainPurple, SE);
+  boxA(4.9, 5.12, 12.6, 13.5, -1.4, 4.0, MAT.curtainPurple, SE);
   const pt = P.framed(S, T.portraits[3], 1.3, 1.65, { ei: 0.25 }); pt.position.set(4.92, 10.7, 1.3); pt.rotation.y = Math.PI / 2;
-  if (!BK) boxA(4.9, 5.6, y0, y0 + 2.2, -3.6, -1.9, MAT.walnut, S);
-  for (let i = 0; i < 7; i++) { const b = cyl(0.07, 0.09, rand(0.2, 0.35), new THREE.MeshStandardMaterial({ color: 0x000000, emissive: new THREE.Color(pick(['#6dffb0', '#c070ff', '#ff6a3a', '#5ad8ff'])), emissiveIntensity: 1.6, transparent: true, opacity: 0.85 }), 5.3, y0 + 2.35, -3.4 + i * 0.22, SB, 8); b.material.userData.noShadow = true; }
+  boxA(4.9, 5.6, y0, y0 + 2.2, -3.6, -1.9, MAT.walnut, SE);
+  for (let i = 0; i < 7; i++) { const b = cyl(0.07, 0.09, rand(0.2, 0.35), new THREE.MeshStandardMaterial({ color: 0x000000, emissive: new THREE.Color(pick(['#6dffb0', '#c070ff', '#ff6a3a', '#5ad8ff'])), emissiveIntensity: 1.6, transparent: true, opacity: 0.85 }), 5.3, y0 + 2.35, -3.4 + i * 0.22, SE, 8); b.material.userData.noShadow = true; }
   // celestial ceiling
-  if (!BK) {
-    const zc = mesh(new THREE.PlaneGeometry(8.7, 9.2), new THREE.MeshStandardMaterial({ map: T.zodiac, roughness: 0.8, emissiveMap: T.zodiac, emissive: 0xffffff, emissiveIntensity: 0.3 }), 9.24, 13.58, 0, S);
-    zc.rotation.x = Math.PI / 2;
-    P.rugPlane(S, cx, y0, cz, 3.8, 3.8, T.rugPurple);
-    P.sconce(S, 7.0, 11.0, -4.58, 0, { m: MAT.flameGreen });
-    P.sconce(S, 11.6, 11.0, -4.58, 0, { m: MAT.flameGreen });
-  }
+  const zc = mesh(new THREE.PlaneGeometry(8.7, 9.2), new THREE.MeshStandardMaterial({ map: T.zodiac, roughness: 0.8, emissiveMap: T.zodiac, emissive: 0xffffff, emissiveIntensity: 0.3 }), 9.24, 13.58, 0, SE);
+  zc.rotation.x = Math.PI / 2;
+  P.rugPlane(SE, cx, y0, cz, 3.8, 3.8, T.rugPurple);
+  P.sconce(SE, 7.0, 11.0, -4.58, 0, { m: MAT.flameGreen });
+  P.sconce(SE, 11.6, 11.0, -4.58, 0, { m: MAT.flameGreen });
   toBin(S);
   const conjure = act(room, 'Ask the medium to call the spirits', async () => {
     sst.speak = 9; sst.frenzy = 1.2;
@@ -473,22 +465,23 @@ function ballroom(root) {
   });
   const S = new THREE.Group(), G = new THREE.Group(); root.add(G);
   const y0 = D.F2;
-  // with the Blender-built set loaded (js/baked.js) the furniture, organ, fireplace and ramp come from there
-  const baked = W.bakedHall;
-  const pipes = baked ? baked.pipes : [];
-  if (!baked) {
+  // the Blender-built set (js/baked.js) brings the furniture, organ, fireplace and ramp; until it arrives, these stand
+  // in for them (js/core.js interim())
+  const H = interim('grandhall', S);
+  const pipes = [];
+  {
     // the gallery ramp the ride climbs
     const ax = 4.4, ay = y0, bx = -9.0, by = 13.25;
     const len = Math.hypot(ax - bx, by - ay), ang = Math.atan2(by - ay, ax - bx);
-    const ramp = new THREE.Group(); ramp.position.set((ax + bx) / 2, (ay + by) / 2 - 0.1, -3.4); ramp.rotation.z = -ang; S.add(ramp);
+    const ramp = new THREE.Group(); ramp.position.set((ax + bx) / 2, (ay + by) / 2 - 0.1, -3.4); ramp.rotation.z = -ang; H.add(ramp);
     boxA(-len / 2, len / 2, -0.12, 0.08, -1.2, 1.2, MAT.woodDark, ramp);
     boxA(-len / 2, len / 2, -0.3, -0.12, 1.05, 1.25, MAT.gold, ramp);
     const rr = mesh(new THREE.PlaneGeometry(len, 0.55), MAT.ironRail, 0, 0.36, 1.2, ramp);
     { const uv = rr.geometry.attributes.uv; for (let i = 0; i < uv.count; i++) uv.setX(i, uv.getX(i) * len / 2.2); }
     boxA(-len / 2, len / 2, 0.62, 0.69, 1.15, 1.27, MAT.gold, ramp);
-    for (let k = 0.15; k < 1; k += 0.22) { const px = lerp(ax, bx, k), py = lerp(ay, by, k); cyl(0.09, 0.11, py - y0, MAT.gold, px, y0 + (py - y0) / 2, -2.3, S, 10); }
+    for (let k = 0.15; k < 1; k += 0.22) { const px = lerp(ax, bx, k), py = lerp(ay, by, k); cyl(0.09, 0.11, py - y0, MAT.gold, px, y0 + (py - y0) / 2, -2.3, H, 10); }
     // organ on the left wall
-    const og = new THREE.Group(); og.position.set(-13.55, y0, 0.9); S.add(og);
+    const og = new THREE.Group(); og.position.set(-13.55, y0, 0.9); H.add(og);
     boxA(0, 1.25, 0, 1.15, -1.7, 1.7, MAT.walnut, og);
     boxA(0.05, 1.45, 1.1, 1.18, -1.6, 1.6, MAT.walnut, og);
     for (let k = 0; k < 3; k++) { boxA(0.55 + k * 0.18, 0.75 + k * 0.18, 0.95 + k * 0.12, 1.0 + k * 0.12, -1.4, 1.4, mat('#efe8da', 0.4), og); boxA(0.55 + k * 0.18, 0.62 + k * 0.18, 1.0 + k * 0.12, 1.03 + k * 0.12, -1.4, 1.4, MAT.black, og); }
@@ -502,7 +495,7 @@ function ballroom(root) {
       pipes.push(new THREE.Vector3(-13.55 + 0.4, y0 + 1.3 + h, 0.9 + z));
     });
     boxA(-0.05, 0.6, 5.9, 6.15, -2.6, 2.6, MAT.gold, og);
-    P.chair(S, -12.0, y0, 0.9, -Math.PI / 2, { seat: MAT.velvetRed, back: 0.4 });
+    P.chair(H, -12.0, y0, 0.9, -Math.PI / 2, { seat: MAT.velvetRed, back: 0.4 });
   }
   const organist = makeGhost({ height: 2.0, width: 0.5, hat: 'hood', arms: 'front', color: 0xa8ffd8 });
   organist.position.set(-12.05, y0 + 0.35, 0.9); organist.rotation.y = -Math.PI / 2; organist.scale.set(1, 0.9, 1); G.add(organist);
@@ -525,25 +518,29 @@ function ballroom(root) {
       w.g.visible = w.g.material.uniforms.uOpacity.value > 0.01;
     }
   });
+  whenBaked('grandhall', () => {            // the baked organ's pipes
+    const p = W.bakedHall.pipes;
+    if (!p.length) return;
+    pipes.length = 0; pipes.push(...p);
+    for (const w of wisps) w.pipe %= p.length;
+  });
   // dining table, birthday cake & diners
-  if (!baked) P.table(S, -4.8, y0, -0.65, 6.0, 1.25, { h: 0.95, cloth: mat('#a99fb8', 0.9) });
+  P.table(H, -4.8, y0, -0.65, 6.0, 1.25, { h: 0.95, cloth: mat('#a99fb8', 0.9) });
   const diners = [];
   [[-7.0, 'top', 0xa8fff0], [-5.8, 'bun', 0xd2c4ff], [-4.6, 'bun', 0xfff0c8], [-3.4, null, 0xa8ffd8], [-2.2, 'bowler', 0xb8e8ff]].forEach(([x, hat, col], i) => {
-    if (!baked) P.chair(S, x, y0, -1.75, 0, { seat: MAT.velvetRed, s: 1.05 });
+    P.chair(H, x, y0, -1.75, 0, { seat: MAT.velvetRed, s: 1.05 });
     const g = makeGhost({ height: i === 2 ? 1.75 : 1.95, width: 0.45, hat, arms: i === 2 ? 'front' : 'down', color: col, flare: 0.9 });
     g.position.set(x, y0 + 0.5, -1.7); g.scale.set(1, 0.85, 1); G.add(g);
     diners.push(g);
   });
-  if (!baked) {
-    for (let i = 0; i < 5; i++) {
-      const x = -7.0 + i * 1.2;
-      cyl(0.2, 0.2, 0.02, mat('#f4f0f6', 0.4), x, y0 + 0.96, -0.95, S, 16);
-      cyl(0.035, 0.05, 0.22, MAT.gold, x + 0.3, y0 + 1.06, -0.75, S, 8);
-      cyl(0.06, 0.035, 0.1, MAT.gold, x + 0.3, y0 + 1.2, -0.75, S, 8);
-    }
-    P.candelabra(S, -6.4, y0 + 0.95, -0.45, { arms: 3, s: 0.7 });
-    P.candelabra(S, -2.8, y0 + 0.95, -0.45, { arms: 3, s: 0.7 });
+  for (let i = 0; i < 5; i++) {
+    const x = -7.0 + i * 1.2;
+    cyl(0.2, 0.2, 0.02, mat('#f4f0f6', 0.4), x, y0 + 0.96, -0.95, H, 16);
+    cyl(0.035, 0.05, 0.22, MAT.gold, x + 0.3, y0 + 1.06, -0.75, H, 8);
+    cyl(0.06, 0.035, 0.1, MAT.gold, x + 0.3, y0 + 1.2, -0.75, H, 8);
   }
+  P.candelabra(H, -6.4, y0 + 0.95, -0.45, { arms: 3, s: 0.7 });
+  P.candelabra(H, -2.8, y0 + 0.95, -0.45, { arms: 3, s: 0.7 });
   const cake = new THREE.Group(); cake.position.set(-4.6, y0 + 0.95, -0.55); S.add(cake);
   cake.userData.keepGroup = true;
   const icing = mat('#f6e8f0', 0.6), sponge = mat('#e8b8c8', 0.7);
@@ -563,7 +560,7 @@ function ballroom(root) {
     diners.forEach((d, i) => { if (i !== 2) d.position.y = y0 + 0.5 + Math.sin(t * 1.6 + i) * 0.05; });
   });
   // fireplace with a lounging ghost on the mantel
-  if (!baked) P.fireplace(S, -10.3, y0, -4.58, 0, { w: 2.7, h: 2.3, stone: MAT.marble });
+  P.fireplace(H, -10.3, y0, -4.58, 0, { w: 2.7, h: 2.3, stone: MAT.marble });
   const lounger = makeGhost({ height: 1.9, width: 0.45, arms: 'up', color: 0xb8fff0, hat: 'top' });
   lounger.position.set(-11.1, y0 + 2.62, -4.0); lounger.rotation.set(0, 0, -Math.PI / 2 + 0.15); G.add(lounger);
   onUpdate((t) => { lounger.position.y = y0 + 2.62 + Math.sin(t * 0.9) * 0.06; lounger.rotation.x = Math.sin(t * 0.6) * 0.1; });
@@ -613,7 +610,7 @@ function ballroom(root) {
       c.g.rotation.y = -c.ph * 3 * wst.speed;
     }
   });
-  if (!baked) P.rugPlane(S, -10.6, y0, 1.6, 2.4, 3.2, T.rugBlue);
+  P.rugPlane(H, -10.6, y0, 1.6, 2.4, 3.2, T.rugBlue);
   // lights
   const chl = new THREE.PointLight(0xffc27a, 24, 16, 1.35); chl.position.set(-5.0, 11.6, 1.6);
   addLight(chl, { room: 'ballroom', flicker: 0.07 });
@@ -644,9 +641,8 @@ function attic(root) {
   const y0 = D.AT;
   // The baked room (blender/attic.py) brings the floorboards and the slopes' lining, and everything here that stays
   // put: the piano (its tail now away from the pianist) and its bench, the trunks, hat boxes, dress form, birdcage,
-  // candles, mirror and rug. The trunks and hat boxes still roll the house's dice, into a group that's thrown away,
-  // so everything after them comes out the same.
-  const BK = !!W.bakedAttic, SB = BK ? new THREE.Group() : S;
+  // candles, mirror and rug. Until it arrives, these stand in for them (js/core.js interim()).
+  const A = interim('attic', S);
   // the bride
   const bride = makeGhost({ height: 2.7, width: 0.42, flare: 2.1, skirt: 0.35, hat: 'veil', arms: 'front', color: 0xd2e4ff, opacity: 0.9 });
   bride.position.set(1.0, y0 + 0.08, -1.6); G.add(bride);
@@ -684,25 +680,27 @@ function attic(root) {
   });
   // the piano and its shadowy player
   const pg = new THREE.Group(); pg.position.set(-6.6, y0, 0.1); pg.rotation.y = 0.35; G.add(pg);
-  if (!BK) {
+  {
+    const PG = interim('attic', pg);
     const pshape = new THREE.Shape(); pshape.moveTo(-0.8, -0.7); pshape.lineTo(0.8, -0.7); pshape.lineTo(0.8, 0.3); pshape.bezierCurveTo(0.8, 1.6, -0.2, 1.4, -0.4, 0.8); pshape.lineTo(-0.8, 0.7); pshape.closePath();
     const pgeo = new THREE.ExtrudeGeometry(pshape, { depth: 0.45, bevelEnabled: false }); pgeo.rotateX(-Math.PI / 2); pgeo.translate(0, 0.62, 0);
-    mesh(pgeo, MAT.black, 0, 0, 0, pg);
+    mesh(pgeo, MAT.black, 0, 0, 0, PG);
     const lidg = new THREE.ExtrudeGeometry(pshape, { depth: 0.03, bevelEnabled: false }); lidg.rotateX(-Math.PI / 2);
-    const lid = mesh(lidg, MAT.black, 0, 1.07, 0, pg); lid.rotation.x = -0.0; lid.rotation.z = 0.0;
-    const lidPivot = new THREE.Group(); lidPivot.position.set(0.8, 1.07, 0); pg.add(lidPivot); lid.position.set(-0.8, 0, 0); lidPivot.add(lid); lidPivot.rotation.z = 0.55;
-    for (const [lx, lz] of [[-0.6, -0.55], [0.6, -0.55], [0.2, 0.9]]) cyl(0.06, 0.05, 0.62, MAT.black, lx, 0.31, lz, pg, 6);
-    boxA(-0.78, 0.78, 0.86, 0.92, -0.86, -0.66, mat('#f2ecde', 0.4), pg);
-    for (let k = 0; k < 18; k++) boxA(-0.76 + k * 0.088, -0.76 + k * 0.088 + 0.04, 0.92, 0.95, -0.86, -0.74, MAT.black, pg);
-    P.chair(S, -6.85, y0, -1.0, 0.35, { seat: MAT.velvet, back: 0.3, s: 0.9 });
-  } else proxy(1.7, 1.9, 2.3, 0, 0.95, 0.25, pg);   // the baked piano is still the thing to click
+    const lid = mesh(lidg, MAT.black, 0, 1.07, 0, PG); lid.rotation.x = -0.0; lid.rotation.z = 0.0;
+    const lidPivot = new THREE.Group(); lidPivot.position.set(0.8, 1.07, 0); PG.add(lidPivot); lid.position.set(-0.8, 0, 0); lidPivot.add(lid); lidPivot.rotation.z = 0.55;
+    for (const [lx, lz] of [[-0.6, -0.55], [0.6, -0.55], [0.2, 0.9]]) cyl(0.06, 0.05, 0.62, MAT.black, lx, 0.31, lz, PG, 6);
+    boxA(-0.78, 0.78, 0.86, 0.92, -0.86, -0.66, mat('#f2ecde', 0.4), PG);
+    for (let k = 0; k < 18; k++) boxA(-0.76 + k * 0.088, -0.76 + k * 0.088 + 0.04, 0.92, 0.95, -0.86, -0.74, MAT.black, PG);
+    P.chair(A, -6.85, y0, -1.0, 0.35, { seat: MAT.velvet, back: 0.3, s: 0.9 });
+  }
+  proxy(1.7, 1.9, 2.3, 0, 0.95, 0.25, pg);   // the piano, baked or standing in, is the thing to click
   const pianist = makeGhost({ height: 1.9, width: 0.44, arms: 'front', color: 0x3a2050, blend: 'normal', opacity: 0.75, eyes: false });
   pianist.position.set(-6.85, y0 + 0.4, -1.0); pianist.rotation.y = 0.35; pianist.scale.y = 0.85; G.add(pianist);
   onUpdate((t) => { pianist.rotation.z = Math.sin(t * 2.4) * 0.08; pianist.position.y = y0 + 0.4 + Math.abs(Math.sin(t * 4.8)) * 0.04; });
   // trunks with pop-up ghosts
   const pops = [];
   [[6.8, -2.6, 0.3], [8.9, -1.2, -0.4], [10.6, -2.9, 0.15]].forEach(([x, z, r], i) => {
-    const tg = new THREE.Group(); tg.position.set(x, y0, z); tg.rotation.y = r; SB.add(tg);
+    const tg = new THREE.Group(); tg.position.set(x, y0, z); tg.rotation.y = r; A.add(tg);
     boxA(-0.6, 0.6, 0, 0.62, -0.38, 0.38, mat(pick(['#4a2a1a', '#3a2a3a', '#2a3a3a']), 0.7), tg);
     for (const sx of [-0.45, 0.45]) boxA(sx - 0.04, sx + 0.04, 0, 0.64, -0.4, 0.4, MAT.brass, tg);
     const gh = makeGhost({ height: 1.35, width: 0.36, arms: 'up', color: 0x9ffcf0, opacity: 0.9 });
@@ -722,10 +720,10 @@ function attic(root) {
     }
   });
   // clutter
-  for (const [x, z, n] of [[-2.6, -3.6, 3], [9.8, 1.0, 2], [-10.2, 0.2, 2]]) for (let k = 0; k < n; k++) cyl(0.32 - k * 0.04, 0.32 - k * 0.04, 0.3, mat(pick(['#7a4a5a', '#4a5a7a', '#8a7a4a']), 0.8), x + rand(-0.05, 0.05), y0 + 0.15 + k * 0.31, z, SB, 14);
+  for (const [x, z, n] of [[-2.6, -3.6, 3], [9.8, 1.0, 2], [-10.2, 0.2, 2]]) for (let k = 0; k < n; k++) cyl(0.32 - k * 0.04, 0.32 - k * 0.04, 0.3, mat(pick(['#7a4a5a', '#4a5a7a', '#8a7a4a']), 0.8), x + rand(-0.05, 0.05), y0 + 0.15 + k * 0.31, z, A, 14);
   // dress form with a veil
-  if (!BK) {
-    const df = new THREE.Group(); df.position.set(4.6, y0, -3.2); S.add(df);
+  {
+    const df = new THREE.Group(); df.position.set(4.6, y0, -3.2); A.add(df);
     cyl(0.03, 0.03, 1.0, MAT.walnut, 0, 0.5, 0, df, 6); boxA(-0.3, 0.3, 0, 0.04, -0.3, 0.3, MAT.walnut, df);
     const torsoG = new THREE.LatheGeometry([[0.0, 0], [0.26, 0.02], [0.2, 0.3], [0.28, 0.62], [0.24, 0.78], [0.08, 0.86], [0.07, 0.95], [0.0, 0.96]].map(([r, h]) => new THREE.Vector2(r, h)), 14);
     const torso = new THREE.Mesh(torsoG, mat('#8a7a6a', 0.85)); torso.scale.set(1, 1, 0.75); torso.position.y = 1.05; df.add(torso);
@@ -739,8 +737,8 @@ function attic(root) {
   for (const sx of [-0.27, 0.27]) { const rk = new THREE.Mesh(new THREE.TorusGeometry(1.1, 0.03, 4, 16, 0.9), MAT.walnut); rk.rotation.y = Math.PI / 2; rk.rotation.z = -Math.PI / 2 - 0.45; rk.position.set(sx, 1.12, 0); rock.add(rk); }
   onUpdate((t) => { rock.rotation.x = Math.sin(t * 1.6) * 0.13; });
   // birdcage
-  if (!BK) {
-    const bcg = new THREE.Group(); bcg.position.set(-1.4, y0, -3.7); S.add(bcg);
+  {
+    const bcg = new THREE.Group(); bcg.position.set(-1.4, y0, -3.7); A.add(bcg);
     cyl(0.03, 0.03, 1.5, MAT.brass, 0, 0.75, 0, bcg, 5);
     for (let k = 0; k < 10; k++) { const a = k / 10 * TAU; cyl(0.008, 0.008, 0.6, MAT.brass, Math.cos(a) * 0.25, 1.8, Math.sin(a) * 0.25, bcg, 3); }
     const dome = new THREE.Mesh(new THREE.SphereGeometry(0.25, 10, 6, 0, TAU, 0, Math.PI / 2), mat('#a8844e', 0.4, 0.8, { side: THREE.DoubleSide })); dome.position.y = 2.1; bcg.add(dome);
@@ -749,14 +747,12 @@ function attic(root) {
   // cobwebs in the corners
   P.cobweb(S, -12.0, 18.9, -3.0, 0.5, 1.6); P.cobweb(S, 12.0, 18.9, -3.0, -Math.PI / 2 - 0.3, 1.4); P.cobweb(S, -12.3, 16.0, 2.0, Math.PI / 2, 1.2);
   // floor-standing candles and a leaning mirror
-  if (!BK) {
-    P.candelabra(S, -1.0, y0, -2.8, { arms: 3, s: 0.9, m: MAT.flame });
-    P.candelabra(S, 3.2, y0, 0.4, { arms: 1, s: 1.2, m: MAT.flame });
-    const mir = new THREE.Group(); mir.position.set(11.6, y0, -1.0); mir.rotation.set(-0.15, -1.1, 0); S.add(mir);
-    boxA(-0.55, 0.55, 0, 1.9, -0.04, 0.04, MAT.gold, mir);
-    boxA(-0.45, 0.45, 0.1, 1.8, 0.04, 0.05, mat('#4a5070', 0.08, 0.9), mir);
-    P.rugPlane(S, 1.0, y0, -0.8, 3.2, 2.4, T.rugBlue);
-  }
+  P.candelabra(A, -1.0, y0, -2.8, { arms: 3, s: 0.9, m: MAT.flame });
+  P.candelabra(A, 3.2, y0, 0.4, { arms: 1, s: 1.2, m: MAT.flame });
+  const mir = new THREE.Group(); mir.position.set(11.6, y0, -1.0); mir.rotation.set(-0.15, -1.1, 0); A.add(mir);
+  boxA(-0.55, 0.55, 0, 1.9, -0.04, 0.04, MAT.gold, mir);
+  boxA(-0.45, 0.45, 0.1, 1.8, 0.04, 0.05, mat('#4a5070', 0.08, 0.9), mir);
+  P.rugPlane(A, 1.0, y0, -0.8, 3.2, 2.4, T.rugBlue);
   toBin(S);
   const beat = act(room, 'Listen to her heart', () => { brst.beat = 2.4; sfx('heartbeat'); say('Thump. Thump. Thump-thump.', { who: '' }); });
   hotspot(bride, 'attic', 'Listen to her heart', beat);
@@ -777,8 +773,9 @@ function basement(root) {
   const S = new THREE.Group(), G = new THREE.Group(); root.add(G);
   const y0 = D.BY0, zw = D.BZ0 + 0.3;
   // The baked basement (blender/basement.py) brings the sconces, the lanterns, the mirror's frame, the boarding
-  // platform and the ramp; the portraits, the mirror itself, the sign's lettering, the attendant and the raven stay.
-  const BK = !!W.bakedBasement;
+  // platform and the ramp; until it arrives, these stand in for them (js/core.js interim()). The portraits, the mirror
+  // itself, the sign's lettering, the attendant and the raven stay.
+  const B = interim('basement', S);
   const frames = [];
   [-13.4, -7.6, -1.8, 4.0].forEach((x, i) => {
     const f = P.framed(G, T.lightning[i][0], 1.55, 1.95, { ei: 0.3 });
@@ -787,28 +784,22 @@ function basement(root) {
     frames.push({ f, i });
   });
   W.lightningPortraits = (on) => { for (const fr of frames) { const m = fr.f.userData.paint; m.map = T.lightning[fr.i][on ? 1 : 0]; m.emissiveMap = m.map; } };
-  if (!BK) {
-    for (const x of [-16.2, -10.5, -4.7, 1.1, 6.9]) P.sconce(S, x, -2.4, zw + 0.06, 0, { m: MAT.flameBlue });
-    for (const x of [-15.0, -6.0, 3.0, 12.6]) { const lt = P.lantern(S, x, -2.0, 8.6, { s: 1.1, hang: true }); cyl(0.01, 0.01, 1.0, MAT.iron, x, -0.9, 8.6, S, 3); }
-  }
+  for (const x of [-16.2, -10.5, -4.7, 1.1, 6.9]) P.sconce(B, x, -2.4, zw + 0.06, 0, { m: MAT.flameBlue });
+  for (const x of [-15.0, -6.0, 3.0, 12.6]) { const lt = P.lantern(B, x, -2.0, 8.6, { s: 1.1, hang: true }); cyl(0.01, 0.01, 1.0, MAT.iron, x, -0.9, 8.6, B, 3); }
   // mirror niche with a gilded frame
   const mx0 = 8.0, mx1 = 12.0, my0 = -5.15, my1 = -1.45;
-  if (!BK) {
-    boxA(mx0 - 0.25, mx0, my0 - 0.25, my1 + 0.25, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, S);
-    boxA(mx1, mx1 + 0.25, my0 - 0.25, my1 + 0.25, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, S);
-    boxA(mx0, mx1, my1, my1 + 0.25, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, S);
-    boxA(mx0, mx1, my0 - 0.25, my0, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, S);
-    const crest = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.08, 6, 16, Math.PI), MAT.gold); crest.position.set((mx0 + mx1) / 2, my1 + 0.25, D.BZ0 + 0.3); S.add(crest);
-  }
+  boxA(mx0 - 0.25, mx0, my0 - 0.25, my1 + 0.25, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, B);
+  boxA(mx1, mx1 + 0.25, my0 - 0.25, my1 + 0.25, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, B);
+  boxA(mx0, mx1, my1, my1 + 0.25, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, B);
+  boxA(mx0, mx1, my0 - 0.25, my0, D.BZ0 - 0.1, D.BZ0 + 0.45, MAT.gold, B);
+  const crest = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.08, 6, 16, Math.PI), MAT.gold); crest.position.set((mx0 + mx1) / 2, my1 + 0.25, D.BZ0 + 0.3); B.add(crest);
   const mirrorDark = new THREE.MeshStandardMaterial({ color: 0x1a1830, roughness: 0.05, metalness: 0.95, emissive: 0x0c0a18 });
   const mirror = mesh(new THREE.PlaneGeometry(mx1 - mx0, my1 - my0), mirrorDark, (mx0 + mx1) / 2, (my0 + my1) / 2, D.BZ0 + 0.02, G);
   mirror.userData.keep = true;
   W.mirrorSpot = { x: (mx0 + mx1) / 2, y: (my0 + my1) / 2, z: D.BZ0 + 0.03, w: mx1 - mx0, h: my1 - my0, dark: mirror };
   // load platform & sign
-  if (!BK) {
-    boxA(13.0, 18.6, y0, y0 + 0.25, 9.5, 10.45, MAT.woodDark, S);
-    boxA(13.0, 18.6, y0 + 0.25, y0 + 0.3, 9.48, 9.6, MAT.gold, S);
-  }
+  boxA(13.0, 18.6, y0, y0 + 0.25, 9.5, 10.45, MAT.woodDark, B);
+  boxA(13.0, 18.6, y0 + 0.25, y0 + 0.3, 9.48, 9.6, MAT.gold, B);
   const sign = mesh(new THREE.PlaneGeometry(4.2, 0.62), new THREE.MeshStandardMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 768; c.height = 112; const x = c.getContext('2d'); x.fillStyle = '#1c1224'; x.fillRect(0, 0, 768, 112); x.strokeStyle = '#c9a24a'; x.lineWidth = 6; x.strokeRect(6, 6, 756, 100); x.fillStyle = '#e9cf8a'; x.font = '50px "IM Fell English SC", Georgia, serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillText('Doom Buggies · Board Here', 384, 60); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })(), emissive: 0xffffff, emissiveIntensity: 0.25, roughness: 0.6 }), 15.7, -1.55, zw + 0.03, S);
   sign.material.emissiveMap = sign.material.map;
   // the attendant
@@ -818,12 +809,12 @@ function basement(root) {
   atl.g.userData.keepGroup = true;
   onUpdate((t) => { att.position.y = y0 + 0.25 + Math.sin(t * 1.3) * 0.06; att.rotation.y = 0.5 + Math.sin(t * 0.4) * 0.3; });
   // ramp from the cellar doors
-  if (!BK) {
+  {
     const rx0 = 22.0, ry0 = -0.2, rx1 = 14.4, ry1 = y0;
     const rl = Math.hypot(rx0 - rx1, ry0 - ry1), ra = Math.atan2(ry0 - ry1, rx0 - rx1);
-    const rg = new THREE.Group(); rg.position.set((rx0 + rx1) / 2, (ry0 + ry1) / 2 - 0.15, 8.2); rg.rotation.z = ra; S.add(rg);
+    const rg = new THREE.Group(); rg.position.set((rx0 + rx1) / 2, (ry0 + ry1) / 2 - 0.15, 8.2); rg.rotation.z = ra; B.add(rg);
     boxA(-rl / 2, rl / 2, -0.12, 0.05, -1.2, 1.2, MAT.woodDark, rg);
-    for (let k = 0; k < 6; k++) { const px = lerp(rx1, rx0, k / 5); cyl(0.1, 0.1, Math.max(0.1, lerp(ry1, ry0, k / 5) - y0), MAT.walnut, px, y0 + Math.max(0.1, lerp(ry1, ry0, k / 5) - y0) / 2, 9.2, S, 6); }
+    for (let k = 0; k < 6; k++) { const px = lerp(rx1, rx0, k / 5); cyl(0.1, 0.1, Math.max(0.1, lerp(ry1, ry0, k / 5) - y0), MAT.walnut, px, y0 + Math.max(0.1, lerp(ry1, ry0, k / 5) - y0) / 2, 9.2, B, 6); }
   }
   P.cobweb(S, -21.3, -0.8, 6.0, 0, 1.4); P.cobweb(S, 20.2, -0.8, 6.0, -Math.PI / 2, 1.2);
   const rv = P.raven(G, -9.25, -0.98, 9.6, 0.4, 1.2);

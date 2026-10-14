@@ -71,7 +71,7 @@ On `localhost` you can skip the title card while developing: `?autoenter` enters
 
 ## How it's built
 
-Apart from the baked sets (the Grand Hall, the outside of the mansion and the grounds), the sculpted figures, and the portraits and wallpaper listed under [Credits](#credits), there are no image, model or audio files. Every mesh is built from primitives, every texture (wallpapers, wood, slate, soil strata, all the portraits, the faces in the crystal ball and on the busts) is painted onto canvases at load time, and all sound is generated with the Web Audio API.
+Apart from the baked sets (every room, the outside of the mansion and the grounds), the sculpted figures, and the portraits and wallpaper listed under [Credits](#credits), there are no image, model or audio files. Every mesh is built from primitives, every texture (wallpapers, wood, slate, soil strata, all the portraits, the faces in the crystal ball and on the busts) is painted onto canvases at load time, and all sound is generated with the Web Audio API.
 
 | File | What it does |
 |---|---|
@@ -109,8 +109,12 @@ Every room of the nook is now modelled in Blender and lit with Cycles instead of
 - A Python script in `blender/` builds each set (`grand_hall.py`, `exterior.py` and `grounds.py`, with shared helpers in `kit.py` and `trees.py`) and removes faces nobody can see. It then bakes two lightmaps, warm (flames, lamps and lit windows) and cool (moonlight, sky and fill light), and exports Draco-compressed geometry. Thin ironwork is exported without a lightmap and lit live by the site, though it still shades the baked surfaces around it.
 - `js/baked.js` draws the sets with one cheap shader. It reads the lightmaps, maps the site's painted textures onto the surfaces and adds the lantern.
 - Because the two lightmaps are separate, the sets still dim for the lantern, flicker with the flames and flash with lightning. Their walls melt away with the facades, and the tower still stretches.
+- The page waits only for what you see first: the exterior, the grounds and the figures. The rooms' sets download in the background once those are in, two at a time and in the order the ride visits the rooms. The basement comes first, because it shows from outside.
+  - Until a room's set arrives, the room is built procedurally. When the set arrives, its procedural stand-ins are removed and the set takes their place, in a single frame.
+  - The Stretching Room waits for the tower to be at rest.
+  - On a 5 Mbit/s connection the house appears after 5.5 seconds instead of 9.1, and every room is baked by 9 seconds.
 - Rebuild a set with `blender/bake.sh grandhall`, `blender/bake.sh stretch`, `blender/bake.sh library`, `blender/bake.sh endless`, `blender/bake.sh conserv`, `blender/bake.sh seance`, `blender/bake.sh attic`, `blender/bake.sh basement`, `blender/bake.sh exterior` or `blender/bake.sh grounds` (after the exterior, whose house and lights it uses), and the figures with `blender/bake.sh figures`. Each takes under a minute on an M4 GPU and writes the web-ready files to `assets/`.
-- To compare, add `?baked=0` to the URL for the all-procedural nook, or `?stretch=0`, `?library=0`, `?endless=0`, `?conserv=0`, `?seance=0`, `?attic=0`, `?basement=0`, `?exterior=0` or `?grounds=0` for the procedural version of just that set, or `?figures=0` for the old figures and ghosts. If a baked set fails to load, the site builds the procedural version in its place.
+- To compare, add `?baked=0` to the URL for the all-procedural nook, or `?stretch=0`, `?library=0`, `?endless=0`, `?conserv=0`, `?seance=0`, `?grandhall=0`, `?attic=0`, `?basement=0`, `?exterior=0` or `?grounds=0` for the procedural version of just that set, or `?figures=0` for the old figures and ghosts. If a baked set fails to load, the site builds the procedural version in its place.
 
 ### The Grand Hall
 
